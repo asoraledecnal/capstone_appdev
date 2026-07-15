@@ -1,0 +1,298 @@
+import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+
+enum ViewMode { regional, provincial }
+
+class TopBar extends StatelessWidget implements PreferredSizeWidget {
+  final ViewMode mode;
+  final ValueChanged<ViewMode> onModeChanged;
+  final VoidCallback onLogout;
+  final bool showMenuButton;
+
+  const TopBar({
+    super.key,
+    required this.mode,
+    required this.onModeChanged,
+    required this.onLogout,
+    this.showMenuButton = false,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(64);
+
+  @override
+  Widget build(BuildContext context) {
+    // Scaffold gives this widget a height of (preferredSize.height + the
+    // device's top safe-area inset) automatically. The previous version
+    // fixed the Container at exactly 64px and then used SafeArea *inside*
+    // that same 64px, which ate into it a second time and caused the
+    // "bottom overflowed" error on phones with a notch/status bar. Instead,
+    // add the inset as top padding so the total height matches what
+    // Scaffold actually allocated, and keep the toolbar row itself at a
+    // fixed 64px underneath it.
+    final topInset = MediaQuery.of(context).padding.top;
+    return Container(
+      padding: EdgeInsets.only(top: topInset),
+      decoration: const BoxDecoration(
+        color: AppColors.panelDark,
+        border: Border(bottom: BorderSide(color: AppColors.sidebarBorder)),
+      ),
+      child: SizedBox(
+        height: 64,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Below this width there isn't room for full labels everywhere,
+            // so we switch to an icon-only / overflow-menu layout instead of
+            // letting Flutter squeeze text into a single-character column.
+            final compact = constraints.maxWidth < 640;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: compact ? _compactRow(context) : _fullRow(context),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _brand({bool showSubtitle = true}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.shield_outlined, color: AppColors.teal, size: 24),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'DICT-4A WAZUH',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.teal,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                letterSpacing: 0.4,
+              ),
+            ),
+            if (showSubtitle)
+              const Text(
+                'SIEM/EDR HUB-AND-SPOKE',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 9.5,
+                  letterSpacing: 0.4,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _fullRow(BuildContext context) {
+    return Row(
+      children: [
+        if (showMenuButton)
+          IconButton(
+            icon: const Icon(Icons.menu, color: AppColors.textSecondary),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        _brand(),
+        const Spacer(),
+        _ToggleButton(
+          label: 'Regional View',
+          icon: Icons.grid_view_rounded,
+          selected: mode == ViewMode.regional,
+          onTap: () => onModeChanged(ViewMode.regional),
+        ),
+        const SizedBox(width: 8),
+        _ToggleButton(
+          label: 'Provincial View',
+          icon: Icons.person_outline,
+          selected: mode == ViewMode.provincial,
+          onTap: () => onModeChanged(ViewMode.provincial),
+        ),
+        const SizedBox(width: 8),
+        _PillButton(label: 'Lance', icon: Icons.person_outline, onTap: () {}),
+        const SizedBox(width: 8),
+        _PillButton(label: 'Logout', icon: Icons.logout, onTap: onLogout),
+      ],
+    );
+  }
+
+  /// Icon-only toggle + overflow menu for phone-width screens.
+  Widget _compactRow(BuildContext context) {
+    return Row(
+      children: [
+        if (showMenuButton)
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.menu, color: AppColors.textSecondary, size: 22),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        const SizedBox(width: 4),
+        Expanded(child: _brand(showSubtitle: false)),
+        _IconToggle(
+          icon: Icons.grid_view_rounded,
+          tooltip: 'Regional View',
+          selected: mode == ViewMode.regional,
+          onTap: () => onModeChanged(ViewMode.regional),
+        ),
+        const SizedBox(width: 6),
+        _IconToggle(
+          icon: Icons.person_outline,
+          tooltip: 'Provincial View',
+          selected: mode == ViewMode.provincial,
+          onTap: () => onModeChanged(ViewMode.provincial),
+        ),
+        PopupMenuButton<String>(
+          color: AppColors.card,
+          icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 20),
+          onSelected: (v) {
+            if (v == 'logout') onLogout();
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              enabled: false,
+              child: Text('Signed in as Lance',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            ),
+            PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout, size: 16, color: AppColors.red),
+                  SizedBox(width: 8),
+                  Text('Logout', style: TextStyle(color: AppColors.red)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _IconToggle extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _IconToggle({
+    required this.icon,
+    required this.tooltip,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      // Tooltip's default triggerMode on touch devices is `tap`, which
+      // intercepts the single tap to show the tooltip bubble instead of
+      // letting it reach the InkWell below -- that's what was silently
+      // blocking the Regional/Provincial switch. Moving the tooltip to
+      // long-press lets a normal tap pass straight through to onTap.
+      triggerMode: TooltipTriggerMode.longPress,
+      child: Material(
+        color: selected ? AppColors.teal : Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              icon,
+              size: 17,
+              color: selected ? Colors.black : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToggleButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ToggleButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _PillButton(
+      label: label,
+      icon: icon,
+      onTap: onTap,
+      filled: selected,
+    );
+  }
+}
+
+class _PillButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool filled;
+
+  const _PillButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: filled ? AppColors.teal : Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: filled ? AppColors.teal : AppColors.cardBorder,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 15,
+                  color: filled ? Colors.black : AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: filled ? Colors.black : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
