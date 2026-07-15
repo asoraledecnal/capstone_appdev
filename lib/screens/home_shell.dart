@@ -10,6 +10,8 @@ import 'regional/threat_intelligence_content.dart';
 import 'regional/vulnerabilities_content.dart';
 import 'regional/regulatory_compliance_content.dart';
 import 'regional/file_integrity_content.dart';
+// TODO: Create this file next for the IT 332 CRUD requirement
+import 'regional/incident_tracker_content.dart'; 
 import 'provincial/provincial_view.dart';
 
 class HomeShell extends StatefulWidget {
@@ -38,6 +40,9 @@ class _HomeShellState extends State<HomeShell> {
         return const RegulatoryComplianceContent();
       case RegionalModule.fileIntegrity:
         return const FileIntegrityContent();
+      case RegionalModule.incidentTracker:
+        // Dinagdag ang route papunta sa bagong CRUD screen
+        return const IncidentTrackerContent();
     }
   }
 
