@@ -290,3 +290,101 @@ class CellText extends StatelessWidget {
     );
   }
 }
+
+class AdaptivePill extends StatelessWidget {
+  final IconData? leadingIcon;
+  final String label;
+  final String? shortLabel;
+  final IconData? trailingIcon;
+  final bool filled;
+  final Color accentColor;
+  final EdgeInsets padding;
+  final double borderRadius;
+  final bool bordered;
+
+  const AdaptivePill({
+    super.key,
+    this.leadingIcon,
+    required this.label,
+    this.shortLabel,
+    this.trailingIcon,
+    this.filled = false,
+    this.accentColor = AppColors.teal,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+    this.borderRadius = 20,
+    this.bordered = true,
+  });
+
+  bool _fits(String text, TextStyle style, double maxWidth) {
+    if (maxWidth <= 0) return false;
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: double.infinity);
+    return painter.width <= maxWidth;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final contentColor = filled ? Colors.black : accentColor;
+    final textStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: contentColor,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Fall back to full screen width if somehow unbounded, so this
+        // never crashes — but see the doc comment above: always wrap in
+        // Expanded/Flexible/SizedBox for this to actually do its job.
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+
+        // Reserve room for the fixed "chrome" (icons + gaps + padding) so
+        // what's left is the true budget available for the text itself.
+        double chrome = padding.horizontal;
+        if (leadingIcon != null) chrome += 15 + 6;
+        if (trailingIcon != null) chrome += 4 + 16;
+        final available = maxWidth - chrome;
+
+        String? chosenLabel;
+        if (_fits(label, textStyle, available)) {
+          chosenLabel = label;
+        } else if (shortLabel != null &&
+            _fits(shortLabel!, textStyle, available)) {
+          chosenLabel = shortLabel;
+        } else {
+          chosenLabel = null; // Neither fits — icon-only fallback.
+        }
+
+        return Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: filled ? accentColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: bordered
+                ? Border.all(color: filled ? accentColor : AppColors.cardBorder)
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leadingIcon != null) ...[
+                Icon(leadingIcon, size: 15, color: contentColor),
+                if (chosenLabel != null) const SizedBox(width: 6),
+              ],
+              if (chosenLabel != null) Text(chosenLabel, style: textStyle),
+              if (trailingIcon != null) ...[
+                const SizedBox(width: 4),
+                Icon(trailingIcon, size: 16, color: contentColor),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
