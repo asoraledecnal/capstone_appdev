@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'theme/app_colors.dart';
-import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +31,10 @@ class WazuhApp extends StatelessWidget {
           surface: AppColors.background,
         ),
       ),
-      home: const LoginScreen(),
+      // Shows a branded intro (logo + app name + loading indicator) for a
+      // beat before handing off to the login screen, instead of jumping
+      // straight from the native splash into the login form.
+      home: const SplashScreen(),
     );
   }
 }

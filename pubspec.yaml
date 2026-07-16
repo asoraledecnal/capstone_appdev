@@ -19,8 +19,49 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
   assets:
-    - assets\images\dict_logo.png
+    - assets/images/dict_logo.png
+    - assets/images/dict_logo_icon.png
+
+# Generates the app icon (Windows shortcut/taskbar, Android launcher). Uses
+# dict_logo_icon.png — a square crop of just the circular badge, WITHOUT
+# the "DICT" wordmark below it — instead of the original dict_logo.png.
+# The original logo's canvas is portrait (badge + text stacked), so
+# feeding it directly into an icon generator (which needs a square source)
+# squeezed/stretched the badge. dict_logo_icon.png is pre-cropped to a true
+# square with even padding, so nothing gets distorted.
+# After editing this file, run:
+#   flutter pub get
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  windows:
+    generate: true
+    icon_size: 256
+  image_path: "assets/images/dict_logo_icon.png"
+  adaptive_icon_background: "#0B0F14"
+  adaptive_icon_foreground: "assets/images/dict_logo_icon.png"
+
+# Replaces Flutter's default white splash (the plain white screen with the
+# Flutter logo shown while the app is still loading) with a plain dark
+# background matching the app theme — no image here on purpose. The native
+# splash is only visible for a split second before the Dart-level
+# SplashScreen widget (lib/screens/splash_screen.dart) takes over, which is
+# where the logo, app name, and loading indicator are actually laid out —
+# native splash has no layout control (can't size/position/add text), so
+# putting the logo there made it look like a small badge floating in a lot
+# of empty dark space. After editing this file, run:
+#   flutter pub get
+#   dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#0B0F14"
+  android_12:
+    color: "#0B0F14"
+  android: true
+  ios: true
+  web: true
