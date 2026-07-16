@@ -22,5 +22,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-assets:
-  assets/images/dict_logo.png
+  assets:
+    - assets/images/
