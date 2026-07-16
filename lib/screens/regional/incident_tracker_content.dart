@@ -1,26 +1,40 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../models/incident_model.dart';
+import '../../providers/incident_providers.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
-import '../../models/incident_model.dart';
 
-class IncidentTrackerContent extends StatefulWidget {
+class IncidentTrackerContent extends ConsumerStatefulWidget {
   const IncidentTrackerContent({super.key});
 
   @override
-  State<IncidentTrackerContent> createState() => _IncidentTrackerContentState();
+  ConsumerState<IncidentTrackerContent> createState() =>
+      _IncidentTrackerContentState();
 }
 
-class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
-  // Database Reference
-  final CollectionReference _incidents = FirebaseFirestore.instance.collection('incidents');
-
+class _IncidentTrackerContentState
+    extends ConsumerState<IncidentTrackerContent> {
   // Controllers para sa Form
   final TextEditingController _spokeCtrl = TextEditingController();
   final TextEditingController _alertTypeCtrl = TextEditingController();
   final TextEditingController _ruleCtrl = TextEditingController();
   String _severity = 'HIGH';
   String _status = 'OPEN';
+
+  Future<void> _seedMockIncidents() async {
+    final repository = ref.read(incidentRepositoryProvider);
+    await repository.seedMockIncidents();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Seeded 50 heuristic incident records into Firestore.'),
+      ),
+    );
+  }
 
   // Modal Dialog para sa Create at Update (IT 332 Requirement)
   Future<void> _showIncidentForm([IncidentLog? incident]) async {
@@ -67,7 +81,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _severity,
+                initialValue: _severity,
                 dropdownColor: AppColors.panelDark,
                 style: const TextStyle(color: AppColors.textPrimary),
                 items: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
@@ -77,7 +91,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                 decoration: const InputDecoration(labelText: 'Severity'),
               ),
               DropdownButtonFormField<String>(
-                value: _status,
+                initialValue: _status,
                 dropdownColor: AppColors.panelDark,
                 style: const TextStyle(color: AppColors.textPrimary),
                 items: ['OPEN', 'IN PROGRESS', 'RESOLVED']
@@ -97,25 +111,35 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal),
             onPressed: () async {
+              final dialogContext = context;
               final data = {
                 'spoke_id': _spokeCtrl.text,
                 'alert_type': _alertTypeCtrl.text,
                 'heuristic_rule': _ruleCtrl.text,
                 'severity': _severity,
                 'ticket_status': _status,
-                'timestamp': incident == null ? FieldValue.serverTimestamp() : Timestamp.fromDate(incident.timestamp),
+                'timestamp': incident == null
+                    ? FieldValue.serverTimestamp()
+                    : Timestamp.fromDate(incident.timestamp),
               };
 
+              final repository = ref.read(incidentRepositoryProvider);
+
               if (incident == null) {
-                // CREATE Operation
-                await _incidents.add(data);
+                await repository.createIncident(data);
               } else {
-                // UPDATE Operation
-                await _incidents.doc(incident.id).update(data);
+                await repository.updateIncident(incident.id, data);
               }
-              if (mounted) Navigator.pop(context);
+
+              if (!mounted) return;
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
             },
-            child: Text(incident == null ? 'Create Log' : 'Update Log', style: const TextStyle(color: Colors.black)),
+            child: Text(
+              incident == null ? 'Create Log' : 'Update Log',
+              style: const TextStyle(color: Colors.black),
+            ),
           ),
         ],
       ),
@@ -124,11 +148,14 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
 
   // DELETE Operation
   Future<void> _deleteIncident(String id) async {
-    await _incidents.doc(id).delete();
+    final repository = ref.read(incidentRepositoryProvider);
+    await repository.deleteIncident(id);
   }
 
   @override
   Widget build(BuildContext context) {
+    final incidentsAsync = ref.watch(incidentStreamProvider);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -137,42 +164,71 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           PageHeader(
             title: 'Incident Tracker (CRUD)',
             subtitle: 'Manual heuristic threat logging and ticket management across all Spokes.',
-            trailing: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal),
-              onPressed: () => _showIncidentForm(),
-              icon: const Icon(Icons.add, color: Colors.black, size: 18),
-              label: const Text('Log Incident', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            trailing: Row(
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal),
+                  onPressed: () => _showIncidentForm(),
+                  icon: const Icon(Icons.add, color: Colors.black, size: 18),
+                  label: const Text(
+                    'Log Incident',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.blue),
+                  onPressed: _seedMockIncidents,
+                  icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Seed 50',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
           DashCard(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _incidents.orderBy('timestamp', descending: true).snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.teal));
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            child: incidentsAsync.when(
+              data: (logs) {
+                if (logs.isEmpty) {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(32.0),
-                      child: Text('No heuristic alerts logged yet.', style: TextStyle(color: AppColors.textMuted)),
+                      child: Text(
+                        'No heuristic alerts logged yet.',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
                     ),
                   );
                 }
 
-                // Map Firestore Documents to IncidentLog Model
-                final logs = snapshot.data!.docs.map((doc) => IncidentLog.fromFirestore(doc)).toList();
-
-                // READ Operation rendered in SimpleTable
                 return HScrollBox(
                   minWidth: 800,
                   child: SimpleTable(
-                    headers: const ['TIMESTAMP', 'SPOKE ID', 'ALERT TYPE', 'SEVERITY', 'STATUS', 'ACTIONS'],
+                    headers: const [
+                      'TIMESTAMP',
+                      'SPOKE ID',
+                      'ALERT TYPE',
+                      'SEVERITY',
+                      'STATUS',
+                      'ACTIONS',
+                    ],
                     flex: const [2, 2, 3, 2, 2, 2],
                     rows: logs.map((log) {
                       return [
-                        CellText(log.timestamp.toString().split('.')[0], color: AppColors.textSecondary, size: 11),
+                        CellText(
+                          log.timestamp.toString().split('.')[0],
+                          color: AppColors.textSecondary,
+                          size: 11,
+                        ),
                         CellText(log.spokeId, weight: FontWeight.w600),
                         CellText(log.alertType, color: AppColors.textSecondary),
                         Align(
@@ -186,7 +242,9 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                           alignment: Alignment.centerLeft,
                           child: StatusBadge(
                             label: log.ticketStatus,
-                            color: log.ticketStatus == 'RESOLVED' ? AppColors.green : AppColors.teal,
+                            color: log.ticketStatus == 'RESOLVED'
+                                ? AppColors.green
+                                : AppColors.teal,
                             outlined: false,
                           ),
                         ),
@@ -194,12 +252,14 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.blue),
-                              onPressed: () => _showIncidentForm(log), // Call Update
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 18, color: AppColors.blue),
+                              onPressed: () => _showIncidentForm(log),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
-                              onPressed: () => _deleteIncident(log.id), // Call Delete
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 18, color: AppColors.red),
+                              onPressed: () => _deleteIncident(log.id),
                             ),
                           ],
                         ),
@@ -208,6 +268,18 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                   ),
                 );
               },
+              loading: () => const Center(
+                    child: CircularProgressIndicator(color: AppColors.teal),
+                  ),
+              error: (error, stackTrace) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Failed to load incidents: $error',
+                        style: const TextStyle(color: AppColors.red),
+                      ),
+                    ),
+                  ),
             ),
           ),
         ],

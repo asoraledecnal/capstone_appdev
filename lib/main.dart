@@ -30,7 +30,7 @@ class SentinelApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       // Na-update ang title para sumalamin sa na-approve nating enterprise concept
-      title: 'Sentinel IV-A', 
+      title: 'Sentinel IV-A',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -46,4 +46,9 @@ class SentinelApp extends StatelessWidget {
       home: const LoginScreen(),
     );
   }
+}
+
+/// Backward-compatible alias kept for older smoke tests and documentation.
+class WazuhApp extends SentinelApp {
+  const WazuhApp({super.key});
 }
