@@ -17,98 +17,6 @@ class _ProvincialViewState extends State<ProvincialView> {
     'Quezon Provincial Office',
   ];
   late String _selectedTenant = _tenants.first;
-  bool _dropdownOpen = false;
-  final LayerLink _dropdownLink = LayerLink();
-  OverlayEntry? _dropdownOverlay;
-
-  void _openDropdown() {
-    final overlay = Overlay.of(context);
-    _dropdownOverlay = OverlayEntry(
-      builder: (context) {
-        return Stack(
-          children: [
-            // Full-screen transparent tap catcher so tapping anywhere
-            // outside the menu closes it (and doesn't leak taps through
-            // to whatever is underneath).
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _closeDropdown,
-              ),
-            ),
-            CompositedTransformFollower(
-              link: _dropdownLink,
-              showWhenUnlinked: false,
-              offset: const Offset(0, 46),
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: 240,
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.cardBorder),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black45,
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final t in _tenants)
-                        Material(
-                          color: t == _selectedTenant
-                              ? AppColors.teal.withValues(alpha: 0.12)
-                              : Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              setState(() => _selectedTenant = t);
-                              _closeDropdown();
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
-                              child: Text(
-                                t,
-                                style: TextStyle(
-                                  color: t == _selectedTenant
-                                      ? AppColors.teal
-                                      : AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    overlay.insert(_dropdownOverlay!);
-    setState(() => _dropdownOpen = true);
-  }
-
-  void _closeDropdown() {
-    _dropdownOverlay?.remove();
-    _dropdownOverlay = null;
-    if (mounted) setState(() => _dropdownOpen = false);
-  }
-
-  @override
-  void dispose() {
-    _dropdownOverlay?.remove();
-    super.dispose();
-  }
 
   static const _events = [
     [
@@ -182,61 +90,68 @@ class _ProvincialViewState extends State<ProvincialView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tenant dropdown trigger. The menu itself is portaled into the
-          // Overlay (see _openDropdown) so it always paints above every
-          // other widget on the page and can't be blocked or visually
-          // overlapped by content further down the screen.
-          CompositedTransformTarget(
-            link: _dropdownLink,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width - 40),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-                    if (_dropdownOpen) {
-                      _closeDropdown();
-                    } else {
-                      _openDropdown();
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.cardBorder),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.location_on_outlined,
-                            size: 16, color: AppColors.teal),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'Tenant: $_selectedTenant',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          _dropdownOpen
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          size: 18,
-                          color: AppColors.textSecondary,
-                        ),
-                      ],
+          // Tenant dropdown trigger. Built on PopupMenuButton instead of a
+          // hand-rolled Overlay/LayerLink so the menu's position is
+          // computed by Flutter itself and always renders directly
+          // attached under the button, regardless of screen width.
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width - 40),
+            child: PopupMenuButton<String>(
+              color: AppColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: const BorderSide(color: AppColors.cardBorder),
+              ),
+              offset: const Offset(0, 46),
+              onSelected: (t) => setState(() => _selectedTenant = t),
+              itemBuilder: (context) => [
+                for (final t in _tenants)
+                  PopupMenuItem(
+                    value: t,
+                    child: Text(
+                      t,
+                      style: TextStyle(
+                        color: t == _selectedTenant
+                            ? AppColors.teal
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
+              ],
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.cardBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.location_on_outlined,
+                        size: 16, color: AppColors.teal),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Tenant: $_selectedTenant',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
                 ),
               ),
             ),

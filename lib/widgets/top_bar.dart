@@ -42,8 +42,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             // Below this width there isn't room for full labels everywhere,
-            // so we switch to an icon-only / overflow-menu layout instead of
-            // letting Flutter squeeze text into a single-character column.
+            // so we switch to a text-dropdown / overflow-menu layout instead
+            // of letting Flutter squeeze text into a single-character column.
             final compact = constraints.maxWidth < 640;
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -123,7 +123,9 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  /// Icon-only toggle + overflow menu for phone-width screens.
+  /// Text-label dropdown for the view switcher + overflow menu for logout,
+  /// used on phone-width screens. Replaces the old icon-only toggle so the
+  /// current mode is readable instead of relying on icon meaning alone.
   Widget _compactRow(BuildContext context) {
     return Row(
       children: [
@@ -131,27 +133,20 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            icon: const Icon(Icons.menu, color: AppColors.textSecondary, size: 22),
+            icon: const Icon(Icons.menu,
+                color: AppColors.textSecondary, size: 22),
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         const SizedBox(width: 4),
         Expanded(child: _brand(showSubtitle: false)),
-        _IconToggle(
-          icon: Icons.grid_view_rounded,
-          tooltip: 'Regional View',
-          selected: mode == ViewMode.regional,
-          onTap: () => onModeChanged(ViewMode.regional),
-        ),
-        const SizedBox(width: 6),
-        _IconToggle(
-          icon: Icons.person_outline,
-          tooltip: 'Provincial View',
-          selected: mode == ViewMode.provincial,
-          onTap: () => onModeChanged(ViewMode.provincial),
-        ),
+        const SizedBox(width: 8),
+        _ViewDropdown(mode: mode, onModeChanged: onModeChanged),
+        const SizedBox(width: 4),
         PopupMenuButton<String>(
+          padding: EdgeInsets.zero,
           color: AppColors.card,
-          icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 20),
+          icon: const Icon(Icons.more_vert,
+              color: AppColors.textSecondary, size: 20),
           onSelected: (v) {
             if (v == 'logout') onLogout();
           },
@@ -159,7 +154,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
             PopupMenuItem(
               enabled: false,
               child: Text('Signed in as Lance',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             ),
             PopupMenuItem(
               value: 'logout',
@@ -178,43 +174,85 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-class _IconToggle extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final bool selected;
-  final VoidCallback onTap;
+/// Text-based dropdown for switching between Regional/Provincial view.
+/// Shows the current mode as a readable label ("Regional View ▾") instead
+/// of a bare icon, and opens a menu with full text options.
+///
+/// Built on PopupMenuButton instead of a hand-rolled Overlay/LayerLink so
+/// the menu's position is computed by Flutter itself and always renders
+/// directly attached under the button, regardless of screen width.
+class _ViewDropdown extends StatelessWidget {
+  final ViewMode mode;
+  final ValueChanged<ViewMode> onModeChanged;
 
-  const _IconToggle({
-    required this.icon,
-    required this.tooltip,
-    required this.selected,
-    required this.onTap,
-  });
+  const _ViewDropdown({required this.mode, required this.onModeChanged});
+
+  String _label(ViewMode m) =>
+      m == ViewMode.regional ? 'Regional View' : 'Provincial View';
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      // Tooltip's default triggerMode on touch devices is `tap`, which
-      // intercepts the single tap to show the tooltip bubble instead of
-      // letting it reach the InkWell below -- that's what was silently
-      // blocking the Regional/Provincial switch. Moving the tooltip to
-      // long-press lets a normal tap pass straight through to onTap.
-      triggerMode: TooltipTriggerMode.longPress,
-      child: Material(
-        color: selected ? AppColors.teal : Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(
-              icon,
-              size: 17,
-              color: selected ? Colors.black : AppColors.textSecondary,
+    return PopupMenuButton<ViewMode>(
+      color: AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.cardBorder),
+      ),
+      // Nudges the menu down a bit and keeps its right edge lined up with
+      // the button's right edge (PopupMenuButton anchors from its own
+      // bounds, so this stays correct at any button position on screen).
+      offset: const Offset(0, 44),
+      onSelected: onModeChanged,
+      itemBuilder: (context) => [
+        for (final m in ViewMode.values)
+          PopupMenuItem(
+            value: m,
+            child: Row(
+              children: [
+                Icon(
+                  m == ViewMode.regional
+                      ? Icons.grid_view_rounded
+                      : Icons.person_outline,
+                  size: 15,
+                  color: m == mode ? AppColors.teal : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _label(m),
+                  style: TextStyle(
+                    color: m == mode ? AppColors.teal : AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
           ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.teal),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _label(mode),
+              style: const TextStyle(
+                color: AppColors.teal,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down,
+              size: 16,
+              color: AppColors.teal,
+            ),
+          ],
         ),
       ),
     );

@@ -27,173 +27,143 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.all(20),
             child: Container(
               width: double.infinity,
-              constraints: BoxConstraints(maxWidth: wide ? 960 : 460),
+              constraints: BoxConstraints(maxWidth: wide ? 520 : 460),
+              padding: EdgeInsets.fromLTRB(
+                wide ? 40 : 32,
+                wide ? 48 : 40,
+                wide ? 40 : 32,
+                wide ? 40 : 32,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.panelDark,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: AppColors.cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
               ),
-              // Side-by-side on wide screens, stacked on phones/portrait.
-              child: wide
-                  ? IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: _brandPanel(showBorder: true)),
-                          Expanded(child: _formPanel()),
-                        ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo (zoomed in, cropped to remove empty margins in the source art)
+                  SizedBox(
+                    height: wide ? 300 : 270,
+                    child: ClipRect(
+                      child: Transform.scale(
+                        scale: 1.35,
+                        child: Image.asset(
+                          'assets/images/dict_logo.png',
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _brandPanel(showBorder: false, compact: true),
-                        const Divider(height: 1, color: AppColors.sidebarBorder),
-                        _formPanel(compact: true),
-                      ],
                     ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Divider
+                  Center(
+                    child: Container(
+                      width: 120,
+                      height: 1,
+                      color: AppColors.sidebarBorder,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Welcome back
+                  const Text(
+                    'WELCOME BACK',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Username
+                  const Text('USERNAME',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          letterSpacing: 0.8)),
+                  const SizedBox(height: 8),
+                  _buildField(
+                    controller: _userCtrl,
+                    hint: 'Enter username',
+                    icon: Icons.person_outline,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Password
+                  const Text('PASSWORD',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          letterSpacing: 0.8)),
+                  const SizedBox(height: 8),
+                  _buildField(
+                    controller: _passCtrl,
+                    hint: 'Enter password',
+                    icon: Icons.lock_outline,
+                    obscure: _obscure,
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility,
+                        color: AppColors.textMuted,
+                        size: 18,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Button, right-aligned like the wireframe
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: 170,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.teal,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                                builder: (_) => const HomeShell()),
+                          );
+                        },
+                        child: const Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _brandPanel({required bool showBorder, bool compact = false}) {
-    return Container(
-      padding: EdgeInsets.all(compact ? 28 : 32),
-      decoration: BoxDecoration(
-        border: showBorder
-            ? const Border(right: BorderSide(color: AppColors.sidebarBorder))
-            : null,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: compact ? 76 : 96,
-            height: compact ? 76 : 96,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.blue, width: 2),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              'DICT',
-              style: TextStyle(
-                color: AppColors.blue,
-                fontWeight: FontWeight.bold,
-                fontSize: compact ? 15 : 18,
-              ),
-            ),
-          ),
-          SizedBox(height: compact ? 14 : 20),
-          Text(
-            'Wazuh SIEM',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: compact ? 19 : 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'DICT Region 4A Prototype',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.teal,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _formPanel({bool compact = false}) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 24 : 40,
-        vertical: compact ? 28 : 32,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Welcome Back',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: compact ? 22 : 26,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Sign in to access the regional dashboard',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.blue, fontSize: 13),
-          ),
-          SizedBox(height: compact ? 24 : 32),
-          const Text('Username',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13)),
-          const SizedBox(height: 8),
-          _buildField(
-            controller: _userCtrl,
-            hint: 'Enter username',
-            icon: Icons.person_outline,
-          ),
-          const SizedBox(height: 20),
-          const Text('Password',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13)),
-          const SizedBox(height: 8),
-          _buildField(
-            controller: _passCtrl,
-            hint: 'Enter password',
-            icon: Icons.lock_outline,
-            obscure: _obscure,
-            suffix: IconButton(
-              icon: Icon(
-                _obscure ? Icons.visibility_off : Icons.visibility,
-                color: AppColors.textMuted,
-                size: 18,
-              ),
-              onPressed: () => setState(() => _obscure = !_obscure),
-            ),
-          ),
-          SizedBox(height: compact ? 22 : 28),
-          SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const HomeShell()),
-                );
-              },
-              child: const Text(
-                'Sign In',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -218,16 +188,16 @@ class _LoginScreenState extends State<LoginScreen> {
         fillColor: AppColors.background,
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.cardBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.cardBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.teal),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.teal, width: 1.4),
         ),
       ),
     );
