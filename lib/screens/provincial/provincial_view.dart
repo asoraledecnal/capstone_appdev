@@ -286,8 +286,12 @@ class _ProvincialViewState extends State<ProvincialView> {
                   ],
                 ),
                 const SizedBox(height: 8),
+                // Wider minWidth + a heavier SEVERITY flex share gives every
+                // column, especially the badge, enough breathing room on a
+                // horizontal scroll so nothing wraps onto a second line or
+                // gets clipped mid-word.
                 HScrollBox(
-                  minWidth: 900,
+                  minWidth: 1180,
                   child: SimpleTable(
                     headers: const [
                       'TIME',
@@ -298,13 +302,27 @@ class _ProvincialViewState extends State<ProvincialView> {
                       'SOURCE',
                       'ACTION'
                     ],
-                    flex: const [1, 2, 2, 1, 4, 2, 2],
+                    flex: const [1, 2, 2, 2, 4, 2, 2],
+                    // ENDPOINT/EVENT TYPE/DESCRIPTION stay left-aligned since
+                    // their text length varies a lot; the shorter,
+                    // fixed-shape columns (TIME, badge, source IP, button)
+                    // look neater centered in the extra column width.
+                    align: const [
+                      Alignment.center,
+                      Alignment.centerLeft,
+                      Alignment.centerLeft,
+                      Alignment.center,
+                      Alignment.centerLeft,
+                      Alignment.center,
+                      Alignment.center,
+                    ],
                     rows: [
                       for (final e in _events)
                         [
                           CellText(e[0], color: AppColors.textSecondary),
                           CellText(e[1], weight: FontWeight.w600),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(_eventIcon(e[2]),
                                   size: 14, color: AppColors.textSecondary),
@@ -314,29 +332,23 @@ class _ProvincialViewState extends State<ProvincialView> {
                                       color: AppColors.textSecondary)),
                             ],
                           ),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: StatusBadge(
-                                label: e[3],
-                                color: AppColors.severityColor(e[3])),
-                          ),
+                          StatusBadge(
+                              label: e[3],
+                              color: AppColors.severityColor(e[3])),
                           CellText(e[4], color: AppColors.textSecondary),
                           CellText(e[5], color: AppColors.teal),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.teal),
-                                foregroundColor: AppColors.teal,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                minimumSize: const Size(0, 0),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              onPressed: () {},
-                              child: Text(e[6],
-                                  style: const TextStyle(fontSize: 11)),
+                          OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.teal),
+                              foregroundColor: AppColors.teal,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
+                            onPressed: () {},
+                            child: Text(e[6],
+                                style: const TextStyle(fontSize: 11)),
                           ),
                         ],
                     ],
@@ -347,6 +359,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                   child: Text(
                     'Showing 5 recent security events. Critical events require immediate action.',
                     style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],

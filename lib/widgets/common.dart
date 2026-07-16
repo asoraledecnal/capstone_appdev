@@ -51,6 +51,13 @@ class StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        // A badge squeezed into a narrow flex column (e.g. a SEVERITY
+        // column on a horizontally-scrolling table) would otherwise wrap
+        // a word like "MEDIUM" onto two lines. Badges should always stay
+        // on one line and shrink/ellipsize instead.
+        softWrap: false,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
           fontSize: 11,
@@ -135,16 +142,26 @@ class SimpleTable extends StatelessWidget {
   final List<List<Widget>> rows;
   final List<int>? flex;
 
+  /// Per-column alignment for both the header label and every cell in that
+  /// column. Defaults to left-aligned (matches the previous behavior) when
+  /// omitted. Pass e.g. `Alignment.center` for short/fixed-width columns
+  /// like a status badge, count, or action button so they sit centered in
+  /// their column instead of hugging the left edge.
+  final List<Alignment>? align;
+
   const SimpleTable({
     super.key,
     required this.headers,
     required this.rows,
     this.flex,
+    this.align,
   });
 
   @override
   Widget build(BuildContext context) {
     final flexValues = flex ?? List.filled(headers.length, 1);
+    final alignValues =
+        align ?? List.filled(headers.length, Alignment.centerLeft);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -155,13 +172,16 @@ class SimpleTable extends StatelessWidget {
               for (int i = 0; i < headers.length; i++)
                 Expanded(
                   flex: flexValues[i],
-                  child: Text(
-                    headers[i],
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
+                  child: Align(
+                    alignment: alignValues[i],
+                    child: Text(
+                      headers[i],
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ),
@@ -176,7 +196,10 @@ class SimpleTable extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 for (int i = 0; i < row.length; i++)
-                  Expanded(flex: flexValues[i], child: row[i]),
+                  Expanded(
+                    flex: flexValues[i],
+                    child: Align(alignment: alignValues[i], child: row[i]),
+                  ),
               ],
             ),
           ),
