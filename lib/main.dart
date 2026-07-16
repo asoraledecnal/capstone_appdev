@@ -1,36 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-// Note: Generated via 'flutterfire configure' command
-import 'firebase_options.dart'; 
+import 'firebase_options.dart';
 import 'theme/app_colors.dart';
 import 'screens/login_screen.dart';
 
 Future<void> main() async {
-  // 1. Flutter Engine Binding (Kritikal para sa async initialization)
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 2. Firebase Backend Initialization (Core Requirement para sa IT 332)
-  // Ito ang magko-connect sa Firestore database mo na may 50 dummy records
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  // 3. TODO (For Capstone): Establish HTTP Overrides & SSL Certificate Pinning 
-  // para sa Hub-and-Spoke VyOS WAN core.
-
-  // 4. Wrap the app in ProviderScope para sa Riverpod state management
-  runApp(const ProviderScope(child: SentinelApp()));
+  runApp(const WazuhApp());
 }
 
-class SentinelApp extends StatelessWidget {
-  const SentinelApp({super.key});
+class WazuhApp extends StatelessWidget {
+  const WazuhApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // Na-update ang title para sumalamin sa na-approve nating enterprise concept
-      title: 'Sentinel IV-A',
+      title: 'DICT-4A Wazuh SIEM',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -46,9 +34,4 @@ class SentinelApp extends StatelessWidget {
       home: const LoginScreen(),
     );
   }
-}
-
-/// Backward-compatible alias kept for older smoke tests and documentation.
-class WazuhApp extends SentinelApp {
-  const WazuhApp({super.key});
 }
