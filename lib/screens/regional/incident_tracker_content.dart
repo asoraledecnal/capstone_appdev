@@ -24,8 +24,7 @@ class IncidentTrackerContent extends StatefulWidget {
   const IncidentTrackerContent({super.key});
 
   @override
-  State<IncidentTrackerContent> createState() =>
-      _IncidentTrackerContentState();
+  State<IncidentTrackerContent> createState() => _IncidentTrackerContentState();
 }
 
 class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
@@ -112,75 +111,212 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                   );
                 }
                 final logs = docs.map(IncidentLog.fromFirestore).toList();
-                return HScrollBox(
-                  minWidth: 900,
-                  child: SimpleTable(
-                    headers: const [
-                      'INCIDENT ID',
-                      'SPOKE',
-                      'ALERT TYPE',
-                      'SEVERITY',
-                      'HEURISTIC RULE',
-                      'STATUS',
-                      'DETECTED',
-                      '',
-                    ],
-                    flex: const [2, 1, 2, 1, 3, 2, 2, 1],
-                    rows: [
-                      for (final log in logs)
-                        [
-                          CellText(log.id,
-                              color: AppColors.teal, weight: FontWeight.w600),
-                          CellText(log.spokeId,
-                              color: AppColors.textSecondary),
-                          CellText(log.alertType),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: StatusBadge(
-                              label: log.severity.toUpperCase(),
-                              color: AppColors.severityColor(log.severity),
-                            ),
-                          ),
-                          CellText(log.heuristicRule,
-                              color: AppColors.textSecondary, size: 12),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: StatusBadge(
-                              label: log.ticketStatus.toUpperCase(),
-                              color: _statusColor(log.ticketStatus),
-                              outlined: false,
-                            ),
-                          ),
-                          CellText(_formatTimestamp(log.timestamp),
-                              color: AppColors.textSecondary, size: 12),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edit',
-                                icon: const Icon(Icons.edit_outlined,
-                                    size: 16, color: AppColors.textSecondary),
-                                onPressed: () =>
-                                    _showIncidentForm(context, existing: log),
-                              ),
-                              IconButton(
-                                tooltip: 'Delete',
-                                icon: const Icon(Icons.delete_outline,
-                                    size: 16, color: AppColors.red),
-                                onPressed: () =>
-                                    _confirmDelete(context, log),
-                              ),
-                            ],
-                          ),
-                        ],
-                    ],
-                  ),
+
+                // An 8-column table (ID, spoke, alert type, severity, rule,
+                // status, timestamp, actions) has no room to breathe below
+                // this width — a horizontal scroll only ever shows a
+                // partial slice of columns on a phone, which is what was
+                // happening in practice. Below the breakpoint, switch to a
+                // stacked card per incident instead: same fields, just laid
+                // out vertically so nothing needs sideways scrolling to be
+                // read in full.
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 760;
+                    return narrow
+                        ? _incidentCardList(context, logs)
+                        : _incidentTable(logs);
+                  },
                 );
               },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _incidentTable(List<IncidentLog> logs) {
+    return HScrollBox(
+      minWidth: 900,
+      child: SimpleTable(
+        headers: const [
+          'INCIDENT ID',
+          'SPOKE',
+          'ALERT TYPE',
+          'SEVERITY',
+          'HEURISTIC RULE',
+          'STATUS',
+          'DETECTED',
+          '',
+        ],
+        flex: const [2, 1, 2, 1, 3, 2, 2, 1],
+        rows: [
+          for (final log in logs)
+            [
+              CellText(log.id, color: AppColors.teal, weight: FontWeight.w600),
+              CellText(log.spokeId, color: AppColors.textSecondary),
+              CellText(log.alertType),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: StatusBadge(
+                  label: log.severity.toUpperCase(),
+                  color: AppColors.severityColor(log.severity),
+                ),
+              ),
+              CellText(log.heuristicRule,
+                  color: AppColors.textSecondary, size: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: StatusBadge(
+                  label: log.ticketStatus.toUpperCase(),
+                  color: _statusColor(log.ticketStatus),
+                  outlined: false,
+                ),
+              ),
+              CellText(_formatTimestamp(log.timestamp),
+                  color: AppColors.textSecondary, size: 12),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Edit',
+                    icon: const Icon(Icons.edit_outlined,
+                        size: 16, color: AppColors.textSecondary),
+                    onPressed: () => _showIncidentForm(context, existing: log),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete',
+                    icon: const Icon(Icons.delete_outline,
+                        size: 16, color: AppColors.red),
+                    onPressed: () => _confirmDelete(context, log),
+                  ),
+                ],
+              ),
+            ],
+        ],
+      ),
+    );
+  }
+
+  /// Mobile-width replacement for the 8-column table: one card per
+  /// incident carrying the exact same fields (ID, spoke, alert type,
+  /// severity, heuristic rule, status, detected time, edit/delete), just
+  /// arranged top-to-bottom instead of squeezed side-to-side.
+  Widget _incidentCardList(BuildContext context, List<IncidentLog> logs) {
+    return Column(
+      children: [
+        for (final log in logs)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: incident ID + severity/status badges + actions
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        log.id,
+                        style: const TextStyle(
+                          color: AppColors.teal,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Edit',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.edit_outlined,
+                          size: 16, color: AppColors.textSecondary),
+                      onPressed: () =>
+                          _showIncidentForm(context, existing: log),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      tooltip: 'Delete',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.delete_outline,
+                          size: 16, color: AppColors.red),
+                      onPressed: () => _confirmDelete(context, log),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Row 2: alert type (main content, wraps freely)
+                Text(
+                  log.alertType,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Row 3: heuristic rule that triggered it
+                Text(
+                  log.heuristicRule,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Row 4: severity + status badges, side by side
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    StatusBadge(
+                      label: log.severity.toUpperCase(),
+                      color: AppColors.severityColor(log.severity),
+                    ),
+                    StatusBadge(
+                      label: log.ticketStatus.toUpperCase(),
+                      color: _statusColor(log.ticketStatus),
+                      outlined: false,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: AppColors.cardBorder),
+                const SizedBox(height: 10),
+                // Row 5: spoke + detected timestamp as small meta chips
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 6,
+                  children: [
+                    _metaChip(Icons.dns_outlined, log.spokeId, AppColors.teal),
+                    _metaChip(Icons.access_time,
+                        _formatTimestamp(log.timestamp), AppColors.textMuted),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(color: color, fontSize: 11.5)),
+      ],
     );
   }
 
@@ -283,10 +419,10 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           id: id,
           spokeId: _spokeIds[rand.nextInt(_spokeIds.length)],
           timestamp: ts,
-          alertType:
-              IncidentLog.alertTypes[rand.nextInt(IncidentLog.alertTypes.length)],
-          severity:
-              IncidentLog.severities[rand.nextInt(IncidentLog.severities.length)],
+          alertType: IncidentLog
+              .alertTypes[rand.nextInt(IncidentLog.alertTypes.length)],
+          severity: IncidentLog
+              .severities[rand.nextInt(IncidentLog.severities.length)],
           heuristicRule: _heuristicRules[rand.nextInt(_heuristicRules.length)],
           ticketStatus: IncidentLog
               .ticketStatuses[rand.nextInt(IncidentLog.ticketStatuses.length)],
@@ -377,7 +513,9 @@ class _IncidentFormDialogState extends State<_IncidentFormDialog> {
               _dropdown('Severity', _severity, IncidentLog.severities,
                   (v) => setState(() => _severity = v!)),
               const SizedBox(height: 14),
-              _dropdown('Ticket Status', _ticketStatus,
+              _dropdown(
+                  'Ticket Status',
+                  _ticketStatus,
                   IncidentLog.ticketStatuses,
                   (v) => setState(() => _ticketStatus = v!)),
               const SizedBox(height: 14),

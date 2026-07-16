@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
-import 'common.dart';
 
 enum ViewMode { regional, provincial }
 
@@ -56,6 +55,10 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  // Shortened from "DICT-4A WAZUH" to "DICT SIEM" — on some phones the
+  // longer title overlapped the Regional/Provincial pill next to it. The
+  // subtitle is still hidden in the compact row (showSubtitle: false) to
+  // keep that space tight as well.
   Widget _brand({bool showSubtitle = true}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -68,7 +71,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'DICT-4A WAZUH',
+              'DICT SIEM',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: AppColors.teal,
@@ -93,10 +96,6 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  /// Wide-screen row. Every pill here is wrapped in Flexible + built from
-  /// AdaptivePill, so even the "full" desktop row auto-shrinks gracefully
-  /// if the window gets dragged narrower than expected, instead of only
-  /// being safe in the dedicated `_compactRow` layout.
   Widget _fullRow(BuildContext context) {
     return Row(
       children: [
@@ -107,49 +106,30 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         _brand(),
         const Spacer(),
-        Flexible(
-          child: _TappablePill(
-            label: 'Regional View',
-            shortLabel: 'Regional',
-            icon: Icons.grid_view_rounded,
-            filled: mode == ViewMode.regional,
-            onTap: () => onModeChanged(ViewMode.regional),
-          ),
+        _ToggleButton(
+          label: 'Regional View',
+          icon: Icons.grid_view_rounded,
+          selected: mode == ViewMode.regional,
+          onTap: () => onModeChanged(ViewMode.regional),
         ),
         const SizedBox(width: 8),
-        Flexible(
-          child: _TappablePill(
-            label: 'Provincial View',
-            shortLabel: 'Provincial',
-            icon: Icons.person_outline,
-            filled: mode == ViewMode.provincial,
-            onTap: () => onModeChanged(ViewMode.provincial),
-          ),
+        _ToggleButton(
+          label: 'Provincial View',
+          icon: Icons.person_outline,
+          selected: mode == ViewMode.provincial,
+          onTap: () => onModeChanged(ViewMode.provincial),
         ),
         const SizedBox(width: 8),
-        Flexible(
-          child: _TappablePill(
-            label: 'Lance',
-            icon: Icons.person_outline,
-            onTap: () {},
-          ),
-        ),
+        _PillButton(label: 'Lance', icon: Icons.person_outline, onTap: () {}),
         const SizedBox(width: 8),
-        Flexible(
-          child: _TappablePill(
-            label: 'Logout',
-            icon: Icons.logout,
-            onTap: onLogout,
-          ),
-        ),
+        _PillButton(label: 'Logout', icon: Icons.logout, onTap: onLogout),
       ],
     );
   }
 
-  /// Compact (phone-width) row: text-label dropdown for the view switcher
-  /// + overflow menu for logout. The dropdown pill is an AdaptivePill, so
-  /// it measures its own label against whatever room `Flexible` actually
-  /// leaves it — no more guessing a pixel breakpoint per screen.
+  /// Text-label dropdown for the view switcher + overflow menu for logout,
+  /// used on phone-width screens. Replaces the old icon-only toggle so the
+  /// current mode is readable instead of relying on icon meaning alone.
   Widget _compactRow(BuildContext context) {
     return Row(
       children: [
@@ -164,11 +144,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 4),
         Expanded(child: _brand(showSubtitle: false)),
         const SizedBox(width: 8),
-        // Flexible = the dropdown always gets whatever real width is left,
-        // and AdaptivePill inside it measures against exactly that.
-        Flexible(
-          child: _ViewDropdown(mode: mode, onModeChanged: onModeChanged),
-        ),
+        _ViewDropdown(mode: mode, onModeChanged: onModeChanged),
         const SizedBox(width: 4),
         PopupMenuButton<String>(
           padding: EdgeInsets.zero,
@@ -209,17 +185,13 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
 /// Built on PopupMenuButton instead of a hand-rolled Overlay/LayerLink so
 /// the menu's position is computed by Flutter itself and always renders
 /// directly attached under the button, regardless of screen width.
-///
-/// The trigger pill itself is an AdaptivePill: it automatically drops to
-/// "Regional"/"Provincial" and finally to icon-only as space shrinks. The
-/// open menu always shows the full label, since that has room to spare.
 class _ViewDropdown extends StatelessWidget {
   final ViewMode mode;
   final ValueChanged<ViewMode> onModeChanged;
 
   const _ViewDropdown({required this.mode, required this.onModeChanged});
 
-  String _fullLabel(ViewMode m) =>
+  String _label(ViewMode m) =>
       m == ViewMode.regional ? 'Regional View' : 'Provincial View';
 
   @override
@@ -250,7 +222,7 @@ class _ViewDropdown extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _fullLabel(m),
+                  _label(m),
                   style: TextStyle(
                     color: m == mode ? AppColors.teal : AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
@@ -261,49 +233,106 @@ class _ViewDropdown extends StatelessWidget {
             ),
           ),
       ],
-      child: AdaptivePill(
-        label: _fullLabel(mode),
-        shortLabel: mode == ViewMode.regional ? 'Regional' : 'Provincial',
-        leadingIcon: mode == ViewMode.regional
-            ? Icons.grid_view_rounded
-            : Icons.person_outline,
-        trailingIcon: Icons.keyboard_arrow_down,
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.teal),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _label(mode),
+              style: const TextStyle(
+                color: AppColors.teal,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down,
+              size: 16,
+              color: AppColors.teal,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// A simple tappable AdaptivePill — used by the full-width row's
-/// mode-toggle/profile/logout buttons.
-class _TappablePill extends StatelessWidget {
+class _ToggleButton extends StatelessWidget {
   final String label;
-  final String? shortLabel;
   final IconData icon;
-  final bool filled;
+  final bool selected;
   final VoidCallback onTap;
 
-  const _TappablePill({
+  const _ToggleButton({
     required this.label,
-    this.shortLabel,
     required this.icon,
-    this.filled = false,
+    required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    return _PillButton(
+      label: label,
+      icon: icon,
+      onTap: onTap,
+      filled: selected,
+    );
+  }
+}
+
+class _PillButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool filled;
+
+  const _PillButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: filled ? AppColors.teal : Colors.transparent,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
-        child: AdaptivePill(
-          label: label,
-          shortLabel: shortLabel,
-          leadingIcon: icon,
-          filled: filled,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: filled ? AppColors.teal : AppColors.cardBorder,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 15,
+                  color: filled ? Colors.black : AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: filled ? Colors.black : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
