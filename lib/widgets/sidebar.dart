@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
+// Idinagdag ang 'incidentTracker' para sa IT 332 CRUD integration
 enum RegionalModule {
   overview,
   endpointSecurity,
@@ -8,6 +9,7 @@ enum RegionalModule {
   vulnerabilities,
   regulatoryCompliance,
   fileIntegrity,
+  incidentTracker, 
 }
 
 class Sidebar extends StatelessWidget {
@@ -23,8 +25,6 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Scrollable nav area: on short screens (phone drawer) this is
-          // what shrinks/scrolls instead of overflowing past the bottom.
           Expanded(
             child: ScrollConfiguration(
               behavior: const _NoScrollbarBehavior(),
@@ -34,7 +34,7 @@ class Sidebar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'WAZUH MANAGER',
+                      'SENTINEL IV-A MANAGER',
                       style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 11,
@@ -101,12 +101,22 @@ class Sidebar extends StatelessWidget {
                       selected: selected == RegionalModule.fileIntegrity,
                       onTap: () => onSelect(RegionalModule.fileIntegrity),
                     ),
+                    const SizedBox(height: 20),
+                    
+                    // --- IT 332 CRUD MODULE INTEGRATION ---
+                    const _SectionLabel('INCIDENT MANAGEMENT'),
+                    const SizedBox(height: 6),
+                    _NavItem(
+                      icon: Icons.assignment_late_outlined,
+                      label: 'Incident Tracker',
+                      selected: selected == RegionalModule.incidentTracker,
+                      onTap: () => onSelect(RegionalModule.incidentTracker),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-          // Footer stays pinned outside the scroll area.
           const Divider(color: AppColors.sidebarBorder, height: 1),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -126,8 +136,6 @@ class Sidebar extends StatelessWidget {
   }
 }
 
-/// Hides the scrollbar thumb and the overscroll glow so the sidebar's
-/// internal scrolling is invisible to the user, per the requested design.
 class _NoScrollbarBehavior extends ScrollBehavior {
   const _NoScrollbarBehavior();
 

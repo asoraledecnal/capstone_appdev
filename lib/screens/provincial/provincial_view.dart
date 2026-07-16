@@ -220,7 +220,7 @@ class _ProvincialViewState extends State<ProvincialView> {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: titleBlock),
+                  const Expanded(child: titleBlock),
                   hubBlock,
                 ],
               );
