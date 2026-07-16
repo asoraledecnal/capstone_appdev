@@ -23,6 +23,9 @@ class OverviewContent extends StatelessWidget {
     {'name': 'Discovery', 'value': 0.6, 'color': AppColors.teal},
   ];
 
+  // Level column derives its badge color from the numeric level (see
+  // _levelColor), so the raw data no longer needs a hardcoded Color baked
+  // into each row.
   static const _events = [
     [
       '10:42:01',
@@ -30,7 +33,6 @@ class OverviewContent extends StatelessWidget {
       '5710',
       '12',
       'sshd: Attempt to login using a non-existent user',
-      AppColors.red
     ],
     [
       '10:41:55',
@@ -38,7 +40,6 @@ class OverviewContent extends StatelessWidget {
       '4101',
       '8',
       'Firewall dropped connection from malicious IP',
-      AppColors.orange
     ],
     [
       '10:40:12',
@@ -46,7 +47,6 @@ class OverviewContent extends StatelessWidget {
       '1002',
       '4',
       'Unknown problem somewhere in the system',
-      AppColors.teal
     ],
     [
       '10:39:05',
@@ -54,9 +54,17 @@ class OverviewContent extends StatelessWidget {
       '31151',
       '10',
       'Mutiple web server 400 error codes from same IP',
-      AppColors.orange
     ],
   ];
+
+  /// Maps a Wazuh rule level to the same red/orange/teal scale used
+  /// elsewhere: 12+ critical, 8-11 high, below that informational.
+  static Color _levelColor(String level) {
+    final v = int.tryParse(level) ?? 0;
+    if (v >= 12) return AppColors.red;
+    if (v >= 8) return AppColors.orange;
+    return AppColors.teal;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +121,7 @@ class OverviewContent extends StatelessWidget {
                   children: [
                     _mitreCard(),
                     const SizedBox(height: 16),
-                    _eventStreamCard(),
+                    _eventStreamCard(context),
                   ],
                 );
               }
@@ -123,7 +131,7 @@ class OverviewContent extends StatelessWidget {
                   children: [
                     Expanded(flex: 4, child: _mitreCard()),
                     const SizedBox(width: 16),
-                    Expanded(flex: 7, child: _eventStreamCard()),
+                    Expanded(flex: 7, child: _eventStreamCard(context)),
                   ],
                 ),
               );
@@ -354,7 +362,7 @@ class OverviewContent extends StatelessWidget {
     );
   }
 
-  Widget _eventStreamCard() {
+  Widget _eventStreamCard(BuildContext context) {
     return DashCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,44 +377,268 @@ class OverviewContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          HScrollBox(
-            minWidth: 620,
-            child: SimpleTable(
-              headers: const [
-                'TIMESTAMP',
-                'AGENT',
-                'RULE ID',
-                'LEVEL',
-                'DESCRIPTION'
-              ],
-              flex: const [2, 3, 2, 1, 5],
-              rows: [
-                for (final e in _events)
-                  [
-                    CellText(e[0] as String, color: AppColors.textSecondary),
-                    CellText(e[1] as String, color: AppColors.teal),
-                    CellText(e[2] as String, color: AppColors.teal),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        width: 26,
-                        height: 22,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: e[5] as Color,
-                          borderRadius: BorderRadius.circular(5),
+          // A 5-column table needs real width to keep every field readable
+          // (this is the same problem/fix already used in Threat
+          // Intelligence). Below the breakpoint, swap the horizontal-scroll
+          // table for a card list where the description wraps in full and
+          // tapping a row opens a dialog with the complete event details.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 560;
+              if (narrow) {
+                return _eventCardList(context);
+              }
+              return HScrollBox(
+                minWidth: 620,
+                child: SimpleTable(
+                  headers: const [
+                    'TIMESTAMP',
+                    'AGENT',
+                    'RULE ID',
+                    'LEVEL',
+                    'DESCRIPTION'
+                  ],
+                  flex: const [2, 3, 2, 1, 5],
+                  align: const [
+                    Alignment.centerLeft,
+                    Alignment.centerLeft,
+                    Alignment.centerLeft,
+                    Alignment.center,
+                    Alignment.centerLeft,
+                  ],
+                  rows: [
+                    for (final e in _events)
+                      [
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e[0], color: AppColors.textSecondary),
                         ),
-                        child: Text(e[3] as String,
-                            style: const TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11)),
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e[1], color: AppColors.teal),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e[2], color: AppColors.teal),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          StatusBadge(
+                            label: e[3],
+                            color: _levelColor(e[3]),
+                          ),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e[4], color: AppColors.textSecondary),
+                        ),
+                      ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Wraps a table cell so the whole row is tappable to open the full
+  /// event-detail dialog, without changing SimpleTable itself.
+  Widget _tappableCell(BuildContext context, List<String> event, Widget child) {
+    return InkWell(
+      onTap: () => _showEventDetails(context, event),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: child,
+      ),
+    );
+  }
+
+  /// Mobile-width replacement for the event table: one card per event so
+  /// the full description is always readable without truncation or
+  /// side-scrolling. Tapping a card opens the same detail dialog used by
+  /// the wide table.
+  Widget _eventCardList(BuildContext context) {
+    return Column(
+      children: [
+        for (final e in _events)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => _showEventDetails(context, e),
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.cardBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                e[2],
+                                style: const TextStyle(
+                                  color: AppColors.teal,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                e[1],
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        StatusBadge(label: e[3], color: _levelColor(e[3])),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Full text, wraps across as many lines as needed —
+                    // this is the actual fix for the unreadable/cut-off
+                    // description on phones.
+                    Text(
+                      e[4],
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        height: 1.35,
                       ),
                     ),
-                    CellText(e[4] as String, color: AppColors.textSecondary),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time,
+                            size: 12, color: AppColors.textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          e[0],
+                          style: const TextStyle(
+                              color: AppColors.textMuted, fontSize: 11.5),
+                        ),
+                        const Spacer(),
+                        const Text(
+                          'Tap for details',
+                          style: TextStyle(
+                              color: AppColors.textMuted, fontSize: 11),
+                        ),
+                        const SizedBox(width: 2),
+                        const Icon(Icons.chevron_right,
+                            size: 14, color: AppColors.textMuted),
+                      ],
+                    ),
                   ],
-              ],
+                ),
+              ),
             ),
+          ),
+      ],
+    );
+  }
+
+  /// Full-detail popup for a single event, used from both the wide table
+  /// (tap a row) and the narrow card list (tap a card).
+  void _showEventDetails(BuildContext context, List<String> event) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.cardBorder),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.terminal, size: 18, color: AppColors.teal),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('Event Details',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+            ),
+            StatusBadge(label: event[3], color: _levelColor(event[3])),
+          ],
+        ),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('TIMESTAMP', event[0]),
+              _detailRow('AGENT', event[1]),
+              _detailRow('RULE ID', event[2]),
+              _detailRow('LEVEL', event[3]),
+              const SizedBox(height: 8),
+              const Text('DESCRIPTION',
+                  style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 10.5,
+                      letterSpacing: 0.4)),
+              const SizedBox(height: 6),
+              Text(
+                event[4],
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(label,
+                style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 10.5,
+                    letterSpacing: 0.4)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
           ),
         ],
       ),
