@@ -19,6 +19,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
+
   
 
 flutter:
@@ -26,7 +29,7 @@ flutter:
   assets:
     - assets/images/dict_logo.png
     - assets/images/dict_logo_icon.png
-
+    - assets/images/dict_logo_iconpad.png
 
 flutter_launcher_icons:
   android: true
@@ -39,10 +42,10 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#0B0F14"
-  image: assets/images/dict_logo_icon.png
+  image: assets/images/dict_logo_iconpad.png
   android_12:
     color: "#0B0F14"
-    image: assets/images/dict_logo_icon.png
+    image: assets/images/dict_logo_iconpad.png
   android: true
   ios: true
   web: true
