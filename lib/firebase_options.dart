@@ -42,14 +42,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'REPLACE_ME',
-    appId: 'REPLACE_ME',
-    messagingSenderId: 'REPLACE_ME',
-    projectId: 'REPLACE_ME',
-    authDomain: 'REPLACE_ME',
-    storageBucket: 'REPLACE_ME',
+    apiKey: 'AIzaSyBpy6yHNqBH5oE_lzX7bMgMqfFqUjR6Gtk',
+    appId: '1:193596528211:web:8109ac9ca9e20ed15758a6',
+    messagingSenderId: '193596528211',
+    projectId: 'androidbase-delarosa',
+    authDomain: 'androidbase-delarosa.firebaseapp.com',
+    storageBucket: 'androidbase-delarosa.firebasestorage.app',
   );
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'REPLACE_ME',
     appId: 'REPLACE_ME',
@@ -59,10 +58,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'REPLACE_ME',
-    appId: 'REPLACE_ME',
-    messagingSenderId: 'REPLACE_ME',
-    projectId: 'REPLACE_ME',
-    storageBucket: 'REPLACE_ME',
+    apiKey: 'AIzaSyBpy6yHNqBH5oE_lzX7bMgMqfFqUjR6Gtk',
+    appId: '1:193596528211:web:ee0ceb803efcbc6e5758a6',
+    messagingSenderId: '193596528211',
+    projectId: 'androidbase-delarosa',
+    authDomain: 'androidbase-delarosa.firebaseapp.com',
+    storageBucket: 'androidbase-delarosa.firebasestorage.app',
   );
 }
