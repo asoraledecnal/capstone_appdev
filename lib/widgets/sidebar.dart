@@ -113,18 +113,27 @@ class Sidebar extends StatelessWidget {
               ),
             ),
           ),
-          // Footer stays pinned outside the scroll area.
+          // Footer stays pinned outside the scroll area. Shows build/version
+          // info instead of the old tagline — useful during grading/demo to
+          // confirm which build is running, and reads as a normal footer
+          // for a systems dashboard.
           const Divider(color: AppColors.sidebarBorder, height: 1),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Text(
-              'LEADING INNOVATIONS,\nTRANSFORMING LIVES,\nBUILDING THE NATION',
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 9,
-                letterSpacing: 0.6,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 12, color: AppColors.textMuted),
+                SizedBox(width: 6),
+                Text(
+                  'v1.0.0 · DICT-Region 4A SIEM',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 10.5,
+                    letterSpacing: 0.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
