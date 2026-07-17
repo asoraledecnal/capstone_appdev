@@ -1,69 +1,38 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../models/wazuh_agent_model.dart';
+import '../../models/mitre_tactic_model.dart';
+import '../../models/wazuh_event_model.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
-class OverviewContent extends StatelessWidget {
+class OverviewContent extends StatefulWidget {
   const OverviewContent({super.key});
 
-  static const _agents = [
-    {'name': 'cavite-po-agent', 'ip': '10.0.1.5', 'active': true},
-    {'name': 'laguna-po-agent', 'ip': '10.0.2.10', 'active': true},
-    {'name': 'quezon-po-agent', 'ip': '10.0.4.22', 'active': true},
-    {'name': 'rizal-po-agent', 'ip': '10.0.3.15', 'active': false},
-  ];
+  @override
+  State<OverviewContent> createState() => _OverviewContentState();
+}
 
-  static const _tactics = [
-    {'name': 'Initial Access', 'value': 0.55, 'color': AppColors.orange},
-    {'name': 'Execution', 'value': 0.18, 'color': AppColors.teal},
-    {'name': 'Persistence', 'value': 0.45, 'color': AppColors.orange},
-    {'name': 'Privilege Esc.', 'value': 0.12, 'color': AppColors.red},
-    {'name': 'Defense\nEvasion', 'value': 0.68, 'color': AppColors.red},
-    {'name': 'Credential\nAccess', 'value': 0.4, 'color': AppColors.orange},
-    {'name': 'Discovery', 'value': 0.6, 'color': AppColors.teal},
-  ];
-
-  // Level column derives its badge color from the numeric level (see
-  // _levelColor), so the raw data no longer needs a hardcoded Color baked
-  // into each row.
-  static const _events = [
-    [
-      '10:42:01',
-      'laguna-agent-01',
-      '5710',
-      '12',
-      'sshd: Attempt to login using a non-existent user',
-    ],
-    [
-      '10:41:55',
-      'cavite-fw-01',
-      '4101',
-      '8',
-      'Firewall dropped connection from malicious IP',
-    ],
-    [
-      '10:40:12',
-      'rizal-svr-02',
-      '1002',
-      '4',
-      'Unknown problem somewhere in the system',
-    ],
-    [
-      '10:39:05',
-      'batangas-hub',
-      '31151',
-      '10',
-      'Mutiple web server 400 error codes from same IP',
-    ],
-  ];
+class _OverviewContentState extends State<OverviewContent> {
+  final _agentsRef = FirebaseFirestore.instance.collection('wazuh_agents');
+  final _tacticsRef = FirebaseFirestore.instance.collection('mitre_tactics');
+  final _eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
+  bool _seeding = false;
 
   /// Maps a Wazuh rule level to the same red/orange/teal scale used
   /// elsewhere: 12+ critical, 8-11 high, below that informational.
-  static Color _levelColor(String level) {
-    final v = int.tryParse(level) ?? 0;
-    if (v >= 12) return AppColors.red;
-    if (v >= 8) return AppColors.orange;
+  static Color _levelColor(int level) {
+    if (level >= 12) return AppColors.red;
+    if (level >= 8) return AppColors.orange;
     return AppColors.teal;
+  }
+
+  String _formatTime(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
   @override
@@ -73,7 +42,7 @@ class OverviewContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PageHeader(
+          PageHeader(
             title: 'Security Events Dashboard',
             subtitle:
                 'Aggregated telemetry from all Region 4A provincial agents.',
@@ -81,9 +50,25 @@ class OverviewContent extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                StatusBadge(label: 'Wazuh Indexer: OK', color: AppColors.teal),
-                StatusBadge(
+                const StatusBadge(
+                    label: 'Wazuh Indexer: OK', color: AppColors.teal),
+                const StatusBadge(
                     label: 'Manager Cluster: OK', color: AppColors.teal),
+                OutlinedButton.icon(
+                  onPressed: _seeding ? null : _seedDemoData,
+                  icon: _seeding
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.dataset_outlined, size: 16),
+                  label: Text(_seeding ? 'Seeding...' : 'Seed Demo Data'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.cardBorder),
+                  ),
+                ),
               ],
             ),
           ),
@@ -142,34 +127,66 @@ class OverviewContent extends StatelessWidget {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Agent status
+  // ---------------------------------------------------------------------
   Widget _agentStatusCard() {
     return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _agentsRef.orderBy('name').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text('Failed to load agents: ${snapshot.error}',
+                  style: const TextStyle(color: AppColors.red)),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final agents = snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Agent Status',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15)),
-              StatusBadge(
-                  label: 'Total: 4',
-                  color: AppColors.textSecondary,
-                  outlined: false),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Agent Status',
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  StatusBadge(
+                      label: 'Total: ${agents.length}',
+                      color: AppColors.textSecondary,
+                      outlined: false),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (agents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No agents yet. Use "Seed Demo Data".',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                )
+              else
+                for (final agent in agents) _agentTile(agent),
             ],
-          ),
-          const SizedBox(height: 14),
-          for (final agent in _agents) _agentTile(agent),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _agentTile(Map<String, Object> agent) {
-    final active = agent['active'] as bool;
+  Widget _agentTile(WazuhAgent agent) {
+    final active = agent.active;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -191,13 +208,13 @@ class OverviewContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(agent['name'] as String,
+                Text(agent.name,
                     style: TextStyle(
                       color: active ? AppColors.textPrimary : AppColors.red,
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
                     )),
-                Text(agent['ip'] as String,
+                Text(agent.ip,
                     style: const TextStyle(
                         color: AppColors.textMuted, fontSize: 11)),
               ],
@@ -216,124 +233,156 @@ class OverviewContent extends StatelessWidget {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Event evolution chart — derived from the most recent wazuh_events
+  // ---------------------------------------------------------------------
   Widget _eventEvolutionCard() {
     return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream:
+            _eventsRef.orderBy('timestamp', descending: true).limit(17).snapshots(),
+        builder: (context, snapshot) {
+          final docs = snapshot.data?.docs ?? const [];
+          final events =
+              docs.map(WazuhEvent.fromFirestore).toList().reversed.toList();
+          final spots = <FlSpot>[
+            for (int i = 0; i < events.length; i++)
+              FlSpot(i.toDouble(), events[i].level.toDouble()),
+          ];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Event Evolution (Severity Levels)',
+              const Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  Text('Event Evolution (Severity Levels)',
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  _LegendDot(color: AppColors.red, label: 'Level 12+ (Critical)'),
+                  _LegendDot(color: AppColors.orange, label: 'Level 8-11 (High)'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 220,
+                child: spots.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No event data yet.',
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                      )
+                    : LineChart(
+                        LineChartData(
+                          minY: 0,
+                          maxY: 20,
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: false,
+                            horizontalInterval: 5,
+                            getDrawingHorizontalLine: (v) => const FlLine(
+                                color: AppColors.cardBorder, strokeWidth: 1),
+                          ),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            bottomTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                interval: 5,
+                                reservedSize: 28,
+                                getTitlesWidget: (v, meta) => Text(
+                                  v.toInt().toString(),
+                                  style: const TextStyle(
+                                      color: AppColors.textMuted, fontSize: 10),
+                                ),
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          lineBarsData: [
+                            LineChartBarData(
+                              isCurved: false,
+                              color: AppColors.red,
+                              barWidth: 2,
+                              dotData: const FlDotData(show: false),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    AppColors.red.withValues(alpha: 0.35),
+                                    AppColors.red.withValues(alpha: 0.02),
+                                  ],
+                                ),
+                              ),
+                              spots: spots,
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // MITRE ATT&CK tactics
+  // ---------------------------------------------------------------------
+  Widget _mitreCard() {
+    return DashCard(
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _tacticsRef.snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final tactics =
+              snapshot.data!.docs.map(MitreTactic.fromFirestore).toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('MITRE ATT&CK Tactics',
                   style: TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 15)),
-              _LegendDot(color: AppColors.red, label: 'Level 12+ (Critical)'),
-              _LegendDot(color: AppColors.orange, label: 'Level 8-11 (High)'),
+              const SizedBox(height: 16),
+              if (tactics.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No tactic data yet. Use "Seed Demo Data".',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                )
+              else
+                for (final t in tactics) _tacticBar(t),
             ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 220,
-            child: LineChart(
-              LineChartData(
-                minY: 0,
-                maxY: 20,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 5,
-                  getDrawingHorizontalLine: (v) =>
-                      const FlLine(color: AppColors.cardBorder, strokeWidth: 1),
-                ),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 5,
-                      reservedSize: 28,
-                      getTitlesWidget: (v, meta) => Text(
-                        v.toInt().toString(),
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 10),
-                      ),
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    isCurved: false,
-                    color: AppColors.red,
-                    barWidth: 2,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppColors.red.withValues(alpha: 0.35),
-                          AppColors.red.withValues(alpha: 0.02),
-                        ],
-                      ),
-                    ),
-                    spots: const [
-                      FlSpot(0, 18),
-                      FlSpot(1, 15),
-                      FlSpot(2, 11),
-                      FlSpot(3, 12),
-                      FlSpot(4, 6),
-                      FlSpot(5, 8),
-                      FlSpot(6, 16),
-                      FlSpot(7, 13),
-                      FlSpot(8, 8),
-                      FlSpot(9, 10),
-                      FlSpot(10, 11),
-                      FlSpot(11, 12),
-                      FlSpot(12, 15),
-                      FlSpot(13, 18),
-                      FlSpot(14, 14),
-                      FlSpot(15, 17),
-                      FlSpot(16, 9),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _mitreCard() {
-    return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('MITRE ATT&CK Tactics',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15)),
-          const SizedBox(height: 16),
-          for (final t in _tactics) _tacticBar(t),
-        ],
-      ),
-    );
-  }
-
-  Widget _tacticBar(Map<String, Object> t) {
+  Widget _tacticBar(MitreTactic t) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -341,7 +390,7 @@ class OverviewContent extends StatelessWidget {
           SizedBox(
             width: 90,
             child: Text(
-              t['name'] as String,
+              t.tacticName,
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: 11.5),
             ),
@@ -350,10 +399,11 @@ class OverviewContent extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: t['value'] as double,
+                value: t.score,
                 minHeight: 8,
                 backgroundColor: AppColors.background,
-                valueColor: AlwaysStoppedAnimation(t['color'] as Color),
+                valueColor:
+                    AlwaysStoppedAnimation(AppColors.severityColor(t.severity)),
               ),
             ),
           ),
@@ -362,95 +412,123 @@ class OverviewContent extends StatelessWidget {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Real-time event stream
+  // ---------------------------------------------------------------------
   Widget _eventStreamCard(BuildContext context) {
     return DashCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 6,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream:
+            _eventsRef.orderBy('timestamp', descending: true).limit(100).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text('Failed to load events: ${snapshot.error}',
+                  style: const TextStyle(color: AppColors.red)),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final events = snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EventStreamTitle(),
-              _RefreshRow(),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // A 5-column table needs real width to keep every field readable
-          // (this is the same problem/fix already used in Threat
-          // Intelligence). Below the breakpoint, swap the horizontal-scroll
-          // table for a card list where the description wraps in full and
-          // tapping a row opens a dialog with the complete event details.
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final narrow = constraints.maxWidth < 560;
-              if (narrow) {
-                return _eventCardList(context);
-              }
-              return HScrollBox(
-                minWidth: 620,
-                child: SimpleTable(
-                  headers: const [
-                    'TIMESTAMP',
-                    'AGENT',
-                    'RULE ID',
-                    'LEVEL',
-                    'DESCRIPTION'
-                  ],
-                  flex: const [2, 3, 2, 1, 5],
-                  align: const [
-                    Alignment.centerLeft,
-                    Alignment.centerLeft,
-                    Alignment.centerLeft,
-                    Alignment.center,
-                    Alignment.centerLeft,
-                  ],
-                  rows: [
-                    for (final e in _events)
-                      [
-                        _tappableCell(
-                          context,
-                          e,
-                          CellText(e[0], color: AppColors.textSecondary),
-                        ),
-                        _tappableCell(
-                          context,
-                          e,
-                          CellText(e[1], color: AppColors.teal),
-                        ),
-                        _tappableCell(
-                          context,
-                          e,
-                          CellText(e[2], color: AppColors.teal),
-                        ),
-                        _tappableCell(
-                          context,
-                          e,
-                          StatusBadge(
-                            label: e[3],
-                            color: _levelColor(e[3]),
-                          ),
-                        ),
-                        _tappableCell(
-                          context,
-                          e,
-                          CellText(e[4], color: AppColors.textSecondary),
-                        ),
-                      ],
-                  ],
+              const Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _EventStreamTitle(),
+                  _RefreshRow(),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (events.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No events yet. Use "Seed Demo Data".',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 560;
+                    if (narrow) {
+                      return _eventCardList(context, events);
+                    }
+                    return HScrollBox(
+                      minWidth: 620,
+                      child: SimpleTable(
+                        headers: const [
+                          'TIMESTAMP',
+                          'AGENT',
+                          'RULE ID',
+                          'LEVEL',
+                          'DESCRIPTION'
+                        ],
+                        flex: const [2, 3, 2, 1, 5],
+                        align: const [
+                          Alignment.centerLeft,
+                          Alignment.centerLeft,
+                          Alignment.centerLeft,
+                          Alignment.center,
+                          Alignment.centerLeft,
+                        ],
+                        rows: [
+                          for (final e in events)
+                            [
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(_formatTime(e.timestamp),
+                                    color: AppColors.textSecondary),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(e.agent, color: AppColors.teal),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(e.ruleId, color: AppColors.teal),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                StatusBadge(
+                                  label: '${e.level}',
+                                  color: _levelColor(e.level),
+                                ),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(e.description,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ],
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  /// Wraps a table cell so the whole row is tappable to open the full
-  /// event-detail dialog, without changing SimpleTable itself.
-  Widget _tappableCell(BuildContext context, List<String> event, Widget child) {
+  Widget _tappableCell(BuildContext context, WazuhEvent event, Widget child) {
     return InkWell(
       onTap: () => _showEventDetails(context, event),
       child: Padding(
@@ -464,10 +542,10 @@ class OverviewContent extends StatelessWidget {
   /// the full description is always readable without truncation or
   /// side-scrolling. Tapping a card opens the same detail dialog used by
   /// the wide table.
-  Widget _eventCardList(BuildContext context) {
+  Widget _eventCardList(BuildContext context, List<WazuhEvent> events) {
     return Column(
       children: [
-        for (final e in _events)
+        for (final e in events)
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -493,7 +571,7 @@ class OverviewContent extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                e[2],
+                                e.ruleId,
                                 style: const TextStyle(
                                   color: AppColors.teal,
                                   fontWeight: FontWeight.w700,
@@ -502,7 +580,7 @@ class OverviewContent extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                e[1],
+                                e.agent,
                                 style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
@@ -512,15 +590,13 @@ class OverviewContent extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        StatusBadge(label: e[3], color: _levelColor(e[3])),
+                        StatusBadge(
+                            label: '${e.level}', color: _levelColor(e.level)),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Full text, wraps across as many lines as needed —
-                    // this is the actual fix for the unreadable/cut-off
-                    // description on phones.
                     Text(
-                      e[4],
+                      e.description,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
@@ -534,7 +610,7 @@ class OverviewContent extends StatelessWidget {
                             size: 12, color: AppColors.textMuted),
                         const SizedBox(width: 4),
                         Text(
-                          e[0],
+                          _formatTime(e.timestamp),
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 11.5),
                         ),
@@ -560,7 +636,7 @@ class OverviewContent extends StatelessWidget {
 
   /// Full-detail popup for a single event, used from both the wide table
   /// (tap a row) and the narrow card list (tap a card).
-  void _showEventDetails(BuildContext context, List<String> event) {
+  void _showEventDetails(BuildContext context, WazuhEvent event) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -580,7 +656,7 @@ class OverviewContent extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       fontSize: 16)),
             ),
-            StatusBadge(label: event[3], color: _levelColor(event[3])),
+            StatusBadge(label: '${event.level}', color: _levelColor(event.level)),
           ],
         ),
         content: SizedBox(
@@ -589,10 +665,10 @@ class OverviewContent extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _detailRow('TIMESTAMP', event[0]),
-              _detailRow('AGENT', event[1]),
-              _detailRow('RULE ID', event[2]),
-              _detailRow('LEVEL', event[3]),
+              _detailRow('TIMESTAMP', _formatTime(event.timestamp)),
+              _detailRow('AGENT', event.agent),
+              _detailRow('RULE ID', event.ruleId),
+              _detailRow('LEVEL', '${event.level}'),
               const SizedBox(height: 8),
               const Text('DESCRIPTION',
                   style: TextStyle(
@@ -601,7 +677,7 @@ class OverviewContent extends StatelessWidget {
                       letterSpacing: 0.4)),
               const SizedBox(height: 6),
               Text(
-                event[4],
+                event.description,
                 style: const TextStyle(
                     color: AppColors.textPrimary, fontSize: 14, height: 1.4),
               ),
@@ -643,6 +719,120 @@ class OverviewContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // ---------------------------------------------------------------------
+  // TEMPORARY seeder — writes demo agents, tactics, and events. Remove or
+  // gate behind a debug flag before any production-style deployment; the
+  // real data path is Wazuh -> Python heuristic engine -> these same
+  // collections, written server-side via the Admin SDK.
+  // ---------------------------------------------------------------------
+  Future<void> _seedDemoData() async {
+    setState(() => _seeding = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+
+      const agentSeed = [
+        {
+          'name': 'cavite-po-agent',
+          'ip': '10.0.1.5',
+          'active': true,
+          'spoke_id': 'SPOKE-01'
+        },
+        {
+          'name': 'laguna-po-agent',
+          'ip': '10.0.2.10',
+          'active': true,
+          'spoke_id': 'SPOKE-02'
+        },
+        {
+          'name': 'batangas-po-agent',
+          'ip': '10.0.3.8',
+          'active': true,
+          'spoke_id': 'SPOKE-03'
+        },
+        {
+          'name': 'rizal-po-agent',
+          'ip': '10.0.3.15',
+          'active': false,
+          'spoke_id': 'SPOKE-04'
+        },
+        {
+          'name': 'quezon-po-agent',
+          'ip': '10.0.4.22',
+          'active': true,
+          'spoke_id': 'SPOKE-05'
+        },
+      ];
+      for (final a in agentSeed) {
+        batch.set(_agentsRef.doc(), a);
+      }
+
+      const tacticSeed = [
+        {'tactic_name': 'Initial Access', 'score': 0.55, 'severity': 'High'},
+        {'tactic_name': 'Execution', 'score': 0.18, 'severity': 'Low'},
+        {'tactic_name': 'Persistence', 'score': 0.45, 'severity': 'High'},
+        {
+          'tactic_name': 'Privilege Esc.',
+          'score': 0.12,
+          'severity': 'Critical'
+        },
+        {
+          'tactic_name': 'Defense\nEvasion',
+          'score': 0.68,
+          'severity': 'Critical'
+        },
+        {
+          'tactic_name': 'Credential\nAccess',
+          'score': 0.4,
+          'severity': 'High'
+        },
+        {'tactic_name': 'Discovery', 'score': 0.6, 'severity': 'Low'},
+      ];
+      for (final t in tacticSeed) {
+        batch.set(_tacticsRef.doc(), t);
+      }
+
+      final rand = Random();
+      final descriptions = [
+        'sshd: Attempt to login using a non-existent user',
+        'Firewall dropped connection from malicious IP',
+        'Unknown problem somewhere in the system',
+        'Multiple web server 400 error codes from same IP',
+        'Integrity checksum changed for monitored file',
+        'PAM: User login failed',
+      ];
+      final agentNames = agentSeed.map((a) => a['name'] as String).toList();
+      final now = DateTime.now();
+      for (int i = 0; i < 20; i++) {
+        final ref = _eventsRef.doc();
+        final ts = now.subtract(Duration(minutes: i * 7));
+        batch.set(ref, {
+          'timestamp': Timestamp.fromDate(ts),
+          'agent': agentNames[rand.nextInt(agentNames.length)],
+          'rule_id': '${1000 + rand.nextInt(30000)}',
+          'level': rand.nextInt(17),
+          'description': descriptions[rand.nextInt(descriptions.length)],
+        });
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Seeded demo agents, tactics, and events.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Seeding failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _seeding = false);
+    }
   }
 }
 

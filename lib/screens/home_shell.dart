@@ -1,100 +1,266 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
-import '../widgets/top_bar.dart';
-import '../widgets/sidebar.dart';
-import 'login_screen.dart';
-import 'regional/overview_content.dart';
-import 'regional/incident_tracker_content.dart';
-import 'regional/endpoint_security_content.dart';
-import 'regional/threat_intelligence_content.dart';
-import 'regional/vulnerabilities_content.dart';
-import 'regional/regulatory_compliance_content.dart';
-import 'regional/file_integrity_content.dart';
-import 'provincial/provincial_view.dart';
+import 'home_shell.dart';
 
-class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _HomeShellState extends State<HomeShell> {
-  final _scaffoldKey = GlobalKey<ScaffoldState>();
-  ViewMode _mode = ViewMode.regional;
-  RegionalModule _module = RegionalModule.overview;
+class _LoginScreenState extends State<LoginScreen> {
+  final _userCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _obscure = true;
+  bool _signingIn = false;
+  String? _error;
 
-  Widget _regionalContent() {
-    switch (_module) {
-      case RegionalModule.overview:
-        return const OverviewContent();
-      case RegionalModule.incidentTracker:
-        return const IncidentTrackerContent();
-      case RegionalModule.endpointSecurity:
-        return const EndpointSecurityContent();
-      case RegionalModule.threatIntelligence:
-        return const ThreatIntelligenceContent();
-      case RegionalModule.vulnerabilities:
-        return const VulnerabilitiesContent();
-      case RegionalModule.regulatoryCompliance:
-        return const RegulatoryComplianceContent();
-      case RegionalModule.fileIntegrity:
-        return const FileIntegrityContent();
-    }
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
   }
 
-  void _selectModule(RegionalModule m) {
-    setState(() => _module = m);
-    // On phones the sidebar lives in a Drawer, so close it after picking
-    // a module instead of leaving it open over the content.
-    if (!context.isWide) {
-      _scaffoldKey.currentState?.closeDrawer();
+  Future<void> _signIn() async {
+    final email = _userCtrl.text.trim();
+    final password = _passCtrl.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter both your email and password.');
+      return;
+    }
+
+    setState(() {
+      _signingIn = true;
+      _error = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _error = switch (e.code) {
+          'user-not-found' || 'invalid-credential' || 'wrong-password' =>
+            'Incorrect email or password.',
+          'invalid-email' => 'That email address looks invalid.',
+          'user-disabled' => 'This account has been disabled.',
+          'too-many-requests' =>
+            'Too many attempts. Please wait a moment and try again.',
+          _ => 'Sign-in failed: ${e.message ?? e.code}',
+        };
+      });
+    } catch (e) {
+      setState(() => _error = 'Sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _signingIn = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final wide = context.isWide;
-    final showDrawer = !wide && _mode == ViewMode.regional;
 
     return Scaffold(
-      key: _scaffoldKey,
       backgroundColor: AppColors.background,
-      drawer: showDrawer
-          ? Drawer(
-              backgroundColor: AppColors.panelDark,
-              width: 260,
-              child: SafeArea(
-                child: Sidebar(selected: _module, onSelect: _selectModule),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(maxWidth: wide ? 520 : 460),
+              padding: EdgeInsets.fromLTRB(
+                wide ? 40 : 32,
+                wide ? 48 : 40,
+                wide ? 40 : 32,
+                wide ? 40 : 32,
               ),
-            )
-          : null,
-      appBar: TopBar(
-        mode: _mode,
-        showMenuButton: showDrawer,
-        onModeChanged: (m) => setState(() => _mode = m),
-        onLogout: () {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-          );
-        },
-      ),
-      body: _mode == ViewMode.regional
-          ? (wide
-              ? Row(
-                  children: [
-                    SizedBox(
-                      width: 240,
-                      child: Sidebar(selected: _module, onSelect: _selectModule),
+              decoration: BoxDecoration(
+                color: AppColors.panelDark,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: wide ? 300 : 270,
+                    child: ClipRect(
+                      child: Transform.scale(
+                        scale: 1.35,
+                        child: Image.asset(
+                          'assets/images/dict_logo.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
-                    const VerticalDivider(width: 1, color: AppColors.sidebarBorder),
-                    Expanded(child: _regionalContent()),
+                  ),
+                  const SizedBox(height: 28),
+                  Center(
+                    child: Container(
+                      width: 120,
+                      height: 1,
+                      color: AppColors.sidebarBorder,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'WELCOME BACK',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text('EMAIL',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          letterSpacing: 0.8)),
+                  const SizedBox(height: 8),
+                  _buildField(
+                    controller: _userCtrl,
+                    hint: 'Enter your assigned email',
+                    icon: Icons.person_outline,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('PASSWORD',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          letterSpacing: 0.8)),
+                  const SizedBox(height: 8),
+                  _buildField(
+                    controller: _passCtrl,
+                    hint: 'Enter password',
+                    icon: Icons.lock_outline,
+                    obscure: _obscure,
+                    onSubmitted: (_) => _signIn(),
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility,
+                        color: AppColors.textMuted,
+                        size: 18,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: AppColors.red,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
-                )
-              : _regionalContent())
-          : const ProvincialView(),
+                  const SizedBox(height: 32),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: 170,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.teal,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: _signingIn ? null : _signIn,
+                        child: _signingIn
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : const Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool obscure = false,
+    Widget? suffix,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onSubmitted,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      keyboardType: keyboardType,
+      onSubmitted: onSubmitted,
+      style: const TextStyle(color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
+        suffixIcon: suffix,
+        hintText: hint,
+        hintStyle: const TextStyle(color: AppColors.textMuted),
+        filled: true,
+        fillColor: AppColors.background,
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.cardBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.cardBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.teal, width: 1.4),
+        ),
+      ),
     );
   }
 }

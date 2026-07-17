@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
@@ -14,6 +15,57 @@ class _LoginScreenState extends State<LoginScreen> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
+  bool _signingIn = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    final email = _userCtrl.text.trim();
+    final password = _passCtrl.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter both your email and password.');
+      return;
+    }
+
+    setState(() {
+      _signingIn = true;
+      _error = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _error = switch (e.code) {
+          'user-not-found' || 'invalid-credential' || 'wrong-password' =>
+            'Incorrect email or password.',
+          'invalid-email' => 'That email address looks invalid.',
+          'user-disabled' => 'This account has been disabled.',
+          'too-many-requests' =>
+            'Too many attempts. Please wait a moment and try again.',
+          _ => 'Sign-in failed: ${e.message ?? e.code}',
+        };
+      });
+    } catch (e) {
+      setState(() => _error = 'Sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _signingIn = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,8 +140,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Username
-                  const Text('USERNAME',
+                  // Email
+                  const Text('EMAIL',
                       style: TextStyle(
                           color: AppColors.textMuted,
                           fontWeight: FontWeight.w600,
@@ -98,8 +150,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   _buildField(
                     controller: _userCtrl,
-                    hint: 'Enter username',
+                    hint: 'Enter your assigned email',
                     icon: Icons.person_outline,
+                    keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 20),
 
@@ -116,6 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hint: 'Enter password',
                     icon: Icons.lock_outline,
                     obscure: _obscure,
+                    onSubmitted: (_) => _signIn(),
                     suffix: IconButton(
                       icon: Icon(
                         _obscure ? Icons.visibility_off : Icons.visibility,
@@ -125,6 +179,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () => setState(() => _obscure = !_obscure),
                     ),
                   ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: AppColors.red,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 32),
 
                   // Button, right-aligned like the wireframe
@@ -142,20 +208,24 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                                builder: (_) => const HomeShell()),
-                          );
-                        },
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
+                        onPressed: _signingIn ? null : _signIn,
+                        child: _signingIn
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : const Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -174,10 +244,14 @@ class _LoginScreenState extends State<LoginScreen> {
     required IconData icon,
     bool obscure = false,
     Widget? suffix,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onSubmitted,
   }) {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      keyboardType: keyboardType,
+      onSubmitted: onSubmitted,
       style: const TextStyle(color: AppColors.textPrimary),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
