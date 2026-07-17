@@ -429,10 +429,20 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
-                      children: const [
-                        Icon(Icons.list, size: 16, color: AppColors.teal),
-                        SizedBox(width: 8),
-                        Expanded(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color:
+                                AppColors.teal.withAlpha((0.12 * 255).round()),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.list,
+                              size: 18, color: AppColors.teal),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
                           child: Text('All Incidents',
                               style: TextStyle(
                                   color: AppColors.textPrimary,
