@@ -22,6 +22,39 @@ class _OverviewContentState extends State<OverviewContent> {
   final _eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
   bool _seeding = false;
 
+  // Event Stream filters. These operate client-side on whatever the
+  // wazuh_events stream returns — no separate query/index needed, and no
+  // change to the data source itself.
+  String _selectedAgent = 'All Agents';
+  String _selectedSeverity = 'All Levels';
+
+  static const _severityOptions = [
+    'All Levels',
+    'Critical (12+)',
+    'High (8-11)',
+    'Low (<8)',
+  ];
+
+  bool _matchesSeverity(int level) {
+    switch (_selectedSeverity) {
+      case 'Critical (12+)':
+        return level >= 12;
+      case 'High (8-11)':
+        return level >= 8 && level <= 11;
+      case 'Low (<8)':
+        return level < 8;
+      default:
+        return true;
+    }
+  }
+
+  void _resetEventFilters() {
+    setState(() {
+      _selectedAgent = 'All Agents';
+      _selectedSeverity = 'All Levels';
+    });
+  }
+
   /// Maps a Wazuh rule level to the same red/orange/teal scale used
   /// elsewhere: 12+ critical, 8-11 high, below that informational.
   static Color _levelColor(int level) {
@@ -148,7 +181,8 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final agents = snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+          final agents =
+              snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -172,8 +206,8 @@ class _OverviewContentState extends State<OverviewContent> {
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No agents yet. Use "Seed Demo Data".',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
@@ -239,8 +273,10 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _eventEvolutionCard() {
     return DashCard(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream:
-            _eventsRef.orderBy('timestamp', descending: true).limit(17).snapshots(),
+        stream: _eventsRef
+            .orderBy('timestamp', descending: true)
+            .limit(17)
+            .snapshots(),
         builder: (context, snapshot) {
           final docs = snapshot.data?.docs ?? const [];
           final events =
@@ -262,8 +298,10 @@ class _OverviewContentState extends State<OverviewContent> {
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 15)),
-                  _LegendDot(color: AppColors.red, label: 'Level 12+ (Critical)'),
-                  _LegendDot(color: AppColors.orange, label: 'Level 8-11 (High)'),
+                  _LegendDot(
+                      color: AppColors.red, label: 'Level 12+ (Critical)'),
+                  _LegendDot(
+                      color: AppColors.orange, label: 'Level 8-11 (High)'),
                 ],
               ),
               const SizedBox(height: 16),
@@ -369,8 +407,8 @@ class _OverviewContentState extends State<OverviewContent> {
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No tactic data yet. Use "Seed Demo Data".',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
@@ -418,8 +456,10 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _eventStreamCard(BuildContext context) {
     return DashCard(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream:
-            _eventsRef.orderBy('timestamp', descending: true).limit(100).snapshots(),
+        stream: _eventsRef
+            .orderBy('timestamp', descending: true)
+            .limit(100)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(
@@ -434,7 +474,32 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final events = snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
+          final allEvents =
+              snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
+
+          final agentOptions = <String>{
+            'All Agents',
+            ...allEvents.map((e) => e.agent),
+          }.toList()
+            ..sort((a, b) => a == 'All Agents'
+                ? -1
+                : (b == 'All Agents' ? 1 : a.compareTo(b)));
+          // Selected agent may no longer exist in the live stream (e.g.
+          // decommissioned agent) — fall back instead of crashing the
+          // dropdown on an invalid value.
+          final agentValue = agentOptions.contains(_selectedAgent)
+              ? _selectedAgent
+              : 'All Agents';
+
+          final events = allEvents.where((e) {
+            final agentMatch =
+                agentValue == 'All Agents' || e.agent == agentValue;
+            return agentMatch && _matchesSeverity(e.level);
+          }).toList();
+
+          final filtersActive =
+              agentValue != 'All Agents' || _selectedSeverity != 'All Levels';
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -447,14 +512,59 @@ class _OverviewContentState extends State<OverviewContent> {
                   _RefreshRow(),
                 ],
               ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _filterDropdown(
+                    icon: Icons.dns_outlined,
+                    value: agentValue,
+                    options: agentOptions,
+                    onChanged: (v) => setState(() => _selectedAgent = v!),
+                  ),
+                  _filterDropdown(
+                    icon: Icons.filter_alt_outlined,
+                    value: _selectedSeverity,
+                    options: _severityOptions,
+                    onChanged: (v) => setState(() => _selectedSeverity = v!),
+                  ),
+                  if (filtersActive)
+                    TextButton.icon(
+                      onPressed: _resetEventFilters,
+                      icon: const Icon(Icons.close,
+                          size: 15, color: AppColors.textSecondary),
+                      label: const Text('Clear Filters',
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
-              if (events.isEmpty)
+              if (allEvents.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No events yet. Use "Seed Demo Data".',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                )
+              else if (events.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'No events match the selected filters.',
+                      style:
+                          TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    ),
                   ),
                 )
               else
@@ -524,6 +634,46 @@ class _OverviewContentState extends State<OverviewContent> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _filterDropdown({
+    required IconData icon,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.textMuted),
+          const SizedBox(width: 6),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isDense: true,
+              dropdownColor: AppColors.card,
+              icon: const Icon(Icons.keyboard_arrow_down,
+                  size: 16, color: AppColors.textMuted),
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500),
+              items: options
+                  .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                  .toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -656,7 +806,8 @@ class _OverviewContentState extends State<OverviewContent> {
                       fontWeight: FontWeight.bold,
                       fontSize: 16)),
             ),
-            StatusBadge(label: '${event.level}', color: _levelColor(event.level)),
+            StatusBadge(
+                label: '${event.level}', color: _levelColor(event.level)),
           ],
         ),
         content: SizedBox(
@@ -782,11 +933,7 @@ class _OverviewContentState extends State<OverviewContent> {
           'score': 0.68,
           'severity': 'Critical'
         },
-        {
-          'tactic_name': 'Credential\nAccess',
-          'score': 0.4,
-          'severity': 'High'
-        },
+        {'tactic_name': 'Credential\nAccess', 'score': 0.4, 'severity': 'High'},
         {'tactic_name': 'Discovery', 'score': 0.6, 'severity': 'Low'},
       ];
       for (final t in tacticSeed) {
