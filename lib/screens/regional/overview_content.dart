@@ -22,6 +22,12 @@ class _OverviewContentState extends State<OverviewContent> {
   final _eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
   bool _seeding = false;
 
+  /// Preview lists (Agent Status, MITRE Tactics) are capped at this many
+  /// items so the card stays a fixed, glanceable size. Anything beyond
+  /// this is reachable via the "View All" bottom sheet instead of pushing
+  /// the whole dashboard taller.
+  static const int _previewLimit = 5;
+
   // Event Stream filters. These operate client-side on whatever the
   // wazuh_events stream returns — no separate query/index needed, and no
   // change to the data source itself.
@@ -66,6 +72,33 @@ class _OverviewContentState extends State<OverviewContent> {
   String _formatTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
+
+  // ---------------------------------------------------------------------
+  // Dedupe helpers — repeated "Seed Demo Data" taps (or repeated seeding
+  // during dev/testing) write fresh docs on top of existing ones instead
+  // of replacing them, which is what produced the "batangas-po-agent" x4 /
+  // "Initial Access" x3 duplicates seen in the live stream. Rather than
+  // touching the seeding/write path, we dedupe on read so the UI always
+  // shows one entry per agent name / tactic name regardless of how many
+  // duplicate docs exist server-side.
+  // ---------------------------------------------------------------------
+  List<WazuhAgent> _dedupeAgents(List<WazuhAgent> agents) {
+    final seen = <String>{};
+    final result = <WazuhAgent>[];
+    for (final a in agents) {
+      if (seen.add(a.name)) result.add(a);
+    }
+    return result;
+  }
+
+  List<MitreTactic> _dedupeTactics(List<MitreTactic> tactics) {
+    final seen = <String>{};
+    final result = <MitreTactic>[];
+    for (final t in tactics) {
+      if (seen.add(t.tacticName)) result.add(t);
+    }
+    return result;
   }
 
   @override
@@ -161,6 +194,250 @@ class _OverviewContentState extends State<OverviewContent> {
   }
 
   // ---------------------------------------------------------------------
+  // Small reusable "View All" trigger shown under a capped preview list.
+  // ---------------------------------------------------------------------
+  Widget _viewAllButton(String label, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.unfold_more, size: 15, color: AppColors.teal),
+          label: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.teal,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            minimumSize: const Size(0, 0),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shared shell for the "View All" bottom sheets: drag handle, title with
+  /// a count badge, a scrollable list built by [itemBuilder], and a
+  /// full-width Close button — matching the modal pattern already used for
+  /// row-detail sheets elsewhere in the app.
+  void _showListSheet({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required int itemCount,
+    required Widget Function(BuildContext, int) itemBuilder,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 16, color: AppColors.teal),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: AppColors.cardBorder),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                      itemCount: itemCount,
+                      itemBuilder: itemBuilder,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: const BorderSide(color: AppColors.cardBorder),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAllAgentsSheet(BuildContext context, List<WazuhAgent> agents) {
+    _showListSheet(
+      context: context,
+      icon: Icons.dns_outlined,
+      title: 'All Agents (${agents.length})',
+      itemCount: agents.length,
+      itemBuilder: (context, i) => _agentTile(agents[i]),
+    );
+  }
+
+  void _showAllTacticsSheet(BuildContext context, List<MitreTactic> tactics) {
+    _showListSheet(
+      context: context,
+      icon: Icons.track_changes_outlined,
+      title: 'All MITRE ATT&CK Tactics (${tactics.length})',
+      itemCount: tactics.length,
+      itemBuilder: (context, i) => _tacticBar(tactics[i]),
+    );
+  }
+
+  void _showAllEventsSheet(BuildContext context, List<WazuhEvent> events) {
+    _showListSheet(
+      context: context,
+      icon: Icons.terminal,
+      title: 'All Events (${events.length})',
+      itemCount: events.length,
+      itemBuilder: (context, i) => _eventCardListItem(context, events[i]),
+    );
+  }
+
+  Widget _eventCardListItem(BuildContext context, WazuhEvent event) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            Navigator.of(context).pop();
+            _showEventDetails(context, event);
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            event.ruleId,
+                            style: const TextStyle(
+                              color: AppColors.teal,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            event.agent,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    StatusBadge(
+                        label: '${event.level}',
+                        color: _levelColor(event.level)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  event.description,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time,
+                        size: 12, color: AppColors.textMuted),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatTime(event.timestamp),
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 11.5),
+                    ),
+                    const Spacer(),
+                    const Text(
+                      'Tap for details',
+                      style:
+                          TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.chevron_right,
+                        size: 14, color: AppColors.textMuted),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
   // Agent status
   // ---------------------------------------------------------------------
   Widget _agentStatusCard() {
@@ -181,8 +458,10 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final agents =
-              snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+          final agents = _dedupeAgents(
+            snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList(),
+          );
+          final preview = agents.take(_previewLimit).toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -210,8 +489,14 @@ class _OverviewContentState extends State<OverviewContent> {
                         TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
-              else
-                for (final agent in agents) _agentTile(agent),
+              else ...[
+                for (final agent in preview) _agentTile(agent),
+                if (agents.length > _previewLimit)
+                  _viewAllButton(
+                    'View All ${agents.length} Agents',
+                    () => _showAllAgentsSheet(context, agents),
+                  ),
+              ],
             ],
           );
         },
@@ -391,16 +676,27 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final tactics =
-              snapshot.data!.docs.map(MitreTactic.fromFirestore).toList();
+          final tactics = _dedupeTactics(
+            snapshot.data!.docs.map(MitreTactic.fromFirestore).toList(),
+          );
+          final preview = tactics.take(_previewLimit).toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('MITRE ATT&CK Tactics',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('MITRE ATT&CK Tactics',
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  StatusBadge(
+                      label: 'Total: ${tactics.length}',
+                      color: AppColors.textSecondary,
+                      outlined: false),
+                ],
+              ),
               const SizedBox(height: 16),
               if (tactics.isEmpty)
                 const Padding(
@@ -411,8 +707,14 @@ class _OverviewContentState extends State<OverviewContent> {
                         TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
-              else
-                for (final t in tactics) _tacticBar(t),
+              else ...[
+                for (final t in preview) _tacticBar(t),
+                if (tactics.length > _previewLimit)
+                  _viewAllButton(
+                    'View All ${tactics.length} Tactics',
+                    () => _showAllTacticsSheet(context, tactics),
+                  ),
+              ],
             ],
           );
         },
@@ -499,6 +801,7 @@ class _OverviewContentState extends State<OverviewContent> {
 
           final filtersActive =
               agentValue != 'All Agents' || _selectedSeverity != 'All Levels';
+          final previewEvents = events.take(_previewLimit).toList();
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,63 +874,77 @@ class _OverviewContentState extends State<OverviewContent> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final narrow = constraints.maxWidth < 560;
-                    if (narrow) {
-                      return _eventCardList(context, events);
-                    }
-                    return HScrollBox(
-                      minWidth: 620,
-                      child: SimpleTable(
-                        headers: const [
-                          'TIMESTAMP',
-                          'AGENT',
-                          'RULE ID',
-                          'LEVEL',
-                          'DESCRIPTION'
-                        ],
-                        flex: const [2, 3, 2, 1, 5],
-                        align: const [
-                          Alignment.centerLeft,
-                          Alignment.centerLeft,
-                          Alignment.centerLeft,
-                          Alignment.center,
-                          Alignment.centerLeft,
-                        ],
-                        rows: [
-                          for (final e in events)
-                            [
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(_formatTime(e.timestamp),
-                                    color: AppColors.textSecondary),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(e.agent, color: AppColors.teal),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(e.ruleId, color: AppColors.teal),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                StatusBadge(
-                                  label: '${e.level}',
-                                  color: _levelColor(e.level),
-                                ),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(e.description,
-                                    color: AppColors.textSecondary),
-                              ),
-                            ],
-                        ],
-                      ),
+                    final eventTable = narrow
+                        ? _eventCardList(context, previewEvents)
+                        : HScrollBox(
+                            minWidth: 620,
+                            child: SimpleTable(
+                              headers: const [
+                                'TIMESTAMP',
+                                'AGENT',
+                                'RULE ID',
+                                'LEVEL',
+                                'DESCRIPTION'
+                              ],
+                              flex: const [2, 3, 2, 1, 5],
+                              align: const [
+                                Alignment.centerLeft,
+                                Alignment.centerLeft,
+                                Alignment.centerLeft,
+                                Alignment.center,
+                                Alignment.centerLeft,
+                              ],
+                              rows: [
+                                for (final e in previewEvents)
+                                  [
+                                    _tappableCell(
+                                      context,
+                                      e,
+                                      CellText(_formatTime(e.timestamp),
+                                          color: AppColors.textSecondary),
+                                    ),
+                                    _tappableCell(
+                                      context,
+                                      e,
+                                      CellText(e.agent, color: AppColors.teal),
+                                    ),
+                                    _tappableCell(
+                                      context,
+                                      e,
+                                      CellText(e.ruleId, color: AppColors.teal),
+                                    ),
+                                    _tappableCell(
+                                      context,
+                                      e,
+                                      StatusBadge(
+                                        label: '${e.level}',
+                                        color: _levelColor(e.level),
+                                      ),
+                                    ),
+                                    _tappableCell(
+                                      context,
+                                      e,
+                                      CellText(e.description,
+                                          color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                              ],
+                            ),
+                          );
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        eventTable,
+                        if (events.length > _previewLimit)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: _viewAllButton(
+                              'View All ${events.length} Events',
+                              () => _showAllEventsSheet(context, events),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),
@@ -877,6 +1194,13 @@ class _OverviewContentState extends State<OverviewContent> {
   // gate behind a debug flag before any production-style deployment; the
   // real data path is Wazuh -> Python heuristic engine -> these same
   // collections, written server-side via the Admin SDK.
+  //
+  // NOTE: this still appends new docs on every tap rather than upserting,
+  // so duplicates will keep accumulating server-side the more times it's
+  // pressed. That's now harmless for the UI (dedup on read + preview cap
+  // handles it), but if you want to stop the collections from growing
+  // unbounded, the real fix is to check-and-skip or overwrite by a stable
+  // doc ID (e.g. doc(agentName)) instead of `.doc()` auto-IDs.
   // ---------------------------------------------------------------------
   Future<void> _seedDemoData() async {
     setState(() => _seeding = true);
@@ -916,7 +1240,9 @@ class _OverviewContentState extends State<OverviewContent> {
         },
       ];
       for (final a in agentSeed) {
-        batch.set(_agentsRef.doc(), a);
+        // Stable doc ID keyed on agent name so repeated seeding overwrites
+        // the same doc instead of piling up duplicates.
+        batch.set(_agentsRef.doc(a['name'] as String), a);
       }
 
       const tacticSeed = [
@@ -937,7 +1263,13 @@ class _OverviewContentState extends State<OverviewContent> {
         {'tactic_name': 'Discovery', 'score': 0.6, 'severity': 'Low'},
       ];
       for (final t in tacticSeed) {
-        batch.set(_tacticsRef.doc(), t);
+        // Same idea: stable doc ID keyed on tactic name (sanitized) so
+        // re-seeding updates in place rather than duplicating bars.
+        final docId = (t['tactic_name'] as String)
+            .replaceAll('\n', ' ')
+            .replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_')
+            .toLowerCase();
+        batch.set(_tacticsRef.doc(docId), t);
       }
 
       final rand = Random();

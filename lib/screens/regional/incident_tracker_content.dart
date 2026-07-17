@@ -11,6 +11,8 @@ import '../../widgets/common.dart';
 /// assets/firestore_schema_and_data.json (spokes collection).
 const _spokeIds = ['SPOKE-01', 'SPOKE-02', 'SPOKE-03', 'SPOKE-04', 'SPOKE-05'];
 
+const _previewLimit = 5;
+
 const _heuristicRules = [
   'SSH Brute Force Threshold Exceeded (5 attempts/60s)',
   'Sequential SYN Port Scan Signature',
@@ -111,6 +113,8 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                   );
                 }
                 final logs = docs.map(IncidentLog.fromFirestore).toList();
+                final previewLogs = logs.take(_previewLimit).toList();
+                final hasMore = logs.length > _previewLimit;
 
                 // An 8-column table (ID, spoke, alert type, severity, rule,
                 // status, timestamp, actions) has no room to breathe below
@@ -120,13 +124,38 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                 // stacked card per incident instead: same fields, just laid
                 // out vertically so nothing needs sideways scrolling to be
                 // read in full.
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final narrow = constraints.maxWidth < 760;
-                    return narrow
-                        ? _incidentCardList(context, logs)
-                        : _incidentTable(logs);
-                  },
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final narrow = constraints.maxWidth < 760;
+                        return narrow
+                            ? _incidentCardList(context, previewLogs)
+                            : _incidentTable(previewLogs);
+                      },
+                    ),
+                    if (hasMore)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                _showAllIncidentsSheet(context, logs),
+                            icon: const Icon(Icons.unfold_more,
+                                size: 16, color: AppColors.teal),
+                            label: const Text('View All Incidents',
+                                style: TextStyle(color: AppColors.teal)),
+                            style: OutlinedButton.styleFrom(
+                              side:
+                                  const BorderSide(color: AppColors.cardBorder),
+                              foregroundColor: AppColors.teal,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 );
               },
             ),
@@ -366,6 +395,171 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
     if (confirmed == true) {
       await _incidents.doc(log.id).delete();
     }
+  }
+
+  void _showAllIncidentsSheet(BuildContext context, List<IncidentLog> logs) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.75,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.list, size: 16, color: AppColors.teal),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text('All Incidents',
+                              style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: AppColors.cardBorder),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                      itemCount: logs.length,
+                      itemBuilder: (context, index) {
+                        final log = logs[index];
+                        return _incidentCardListItem(context, log);
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: const BorderSide(color: AppColors.cardBorder),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _incidentCardListItem(BuildContext context, IncidentLog log) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => _showIncidentForm(context, existing: log),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        log.id,
+                        style: const TextStyle(
+                          color: AppColors.teal,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                    StatusBadge(
+                      label: log.severity.toUpperCase(),
+                      color: AppColors.severityColor(log.severity),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  log.alertType,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  log.heuristicRule,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 6,
+                  children: [
+                    _metaChip(Icons.dns_outlined, log.spokeId, AppColors.teal),
+                    _metaChip(Icons.access_time,
+                        _formatTimestamp(log.timestamp), AppColors.textMuted),
+                    _metaChip(Icons.flag_outlined, log.ticketStatus,
+                        AppColors.orange),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Row(
+                  children: [
+                    Text('Tap to edit',
+                        style: TextStyle(
+                            color: AppColors.textMuted, fontSize: 11)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showIncidentForm(
