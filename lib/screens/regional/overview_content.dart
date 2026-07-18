@@ -22,6 +22,21 @@ class _OverviewContentState extends State<OverviewContent> {
   final _eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
   bool _seeding = false;
   static const _previewLimit = 5;
+  static const _severityFilters = ['All', 'Critical', 'High', 'Medium', 'Low'];
+  String _selectedSeverity = 'All';
+  String _selectedAgent = 'All';
+
+  static List<T> _distinctBy<T, K>(List<T> items, K Function(T) key) {
+    final seen = <K>{};
+    final unique = <T>[];
+    for (final item in items) {
+      final value = key(item);
+      if (seen.add(value)) {
+        unique.add(item);
+      }
+    }
+    return unique;
+  }
 
   /// Maps a Wazuh rule level to the same red/orange/teal scale used
   /// elsewhere: 12+ critical, 8-11 high, below that informational.
@@ -444,8 +459,20 @@ class _OverviewContentState extends State<OverviewContent> {
           }
           final events =
               snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
-          final previewEvents = events.take(_previewLimit).toList();
-          final hasMoreEvents = events.length > _previewLimit;
+          final uniqueEvents = _distinctBy(events, (WazuhEvent e) => e.id);
+          final filteredEvents = uniqueEvents.where((e) {
+            final severityLabel = _severityLabel(e.level);
+            if (_selectedSeverity != 'All' &&
+                severityLabel != _selectedSeverity) {
+              return false;
+            }
+            if (_selectedAgent != 'All' && e.agent != _selectedAgent) {
+              return false;
+            }
+            return true;
+          }).toList();
+          final previewEvents = filteredEvents.take(_previewLimit).toList();
+          final hasMoreEvents = filteredEvents.length > _previewLimit;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -458,12 +485,23 @@ class _OverviewContentState extends State<OverviewContent> {
                   _RefreshRow(),
                 ],
               ),
+              const SizedBox(height: 10),
+              _eventFilters(uniqueEvents),
               const SizedBox(height: 8),
-              if (events.isEmpty)
+              if (uniqueEvents.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No events yet. Use "Seed Demo Data".',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                )
+              else if (filteredEvents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No events match the current filters.',
                     style:
                         TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -542,7 +580,7 @@ class _OverviewContentState extends State<OverviewContent> {
                           alignment: Alignment.centerLeft,
                           child: OutlinedButton.icon(
                             onPressed: () =>
-                                _showAllEventsSheet(context, events),
+                                _showAllEventsSheet(context, filteredEvents),
                             icon: const Icon(Icons.unfold_more,
                                 size: 16, color: AppColors.teal),
                             label: const Text('View All Events',
@@ -572,6 +610,80 @@ class _OverviewContentState extends State<OverviewContent> {
         child: child,
       ),
     );
+  }
+
+  Widget _eventFilters(List<WazuhEvent> events) {
+    final agents = [
+      'All',
+      ...events.map((e) => e.agent).where((a) => a.isNotEmpty).toSet().toList()
+        ..sort(),
+    ];
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _filterDropdown(
+          label: 'Severity',
+          value: _selectedSeverity,
+          items: _severityFilters,
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _selectedSeverity = value);
+          },
+        ),
+        _filterDropdown(
+          label: 'Agent',
+          value: _selectedAgent,
+          items: agents,
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _selectedAgent = value);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _filterDropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: DropdownButton<String>(
+          value: value,
+          underline: const SizedBox.shrink(),
+          borderRadius: BorderRadius.circular(10),
+          icon:
+              const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          dropdownColor: AppColors.card,
+          items: items
+              .map((item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(item,
+                        style: const TextStyle(color: AppColors.textPrimary)),
+                  ))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  String _severityLabel(int level) {
+    if (level >= 12) return 'Critical';
+    if (level >= 8) return 'High';
+    if (level >= 4) return 'Medium';
+    return 'Low';
   }
 
   void _showAllEventsSheet(BuildContext context, List<WazuhEvent> events) {
