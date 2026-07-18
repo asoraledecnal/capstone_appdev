@@ -9,27 +9,31 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onLogout;
   final bool showMenuButton;
 
+  /// The currently signed-in account (usually the Firebase Auth email).
+  /// Falls back to 'User' if no session is found.
+  final String userLabel;
+
   const TopBar({
     super.key,
     required this.mode,
     required this.onModeChanged,
     required this.onLogout,
     this.showMenuButton = false,
+    this.userLabel = 'User',
   });
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
 
+  /// Short display form for tight spaces (the pill button): if the label
+  /// is an email, show only the part before '@' so it doesn't overflow a
+  /// pill-shaped button. The full email is still shown in the compact
+  /// dropdown's "Signed in as ..." line where there's more room.
+  String get _shortLabel =>
+      userLabel.contains('@') ? userLabel.split('@').first : userLabel;
+
   @override
   Widget build(BuildContext context) {
-    // Scaffold gives this widget a height of (preferredSize.height + the
-    // device's top safe-area inset) automatically. The previous version
-    // fixed the Container at exactly 64px and then used SafeArea *inside*
-    // that same 64px, which ate into it a second time and caused the
-    // "bottom overflowed" error on phones with a notch/status bar. Instead,
-    // add the inset as top padding so the total height matches what
-    // Scaffold actually allocated, and keep the toolbar row itself at a
-    // fixed 64px underneath it.
     final topInset = MediaQuery.of(context).padding.top;
     return Container(
       padding: EdgeInsets.only(top: topInset),
@@ -41,9 +45,6 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
         height: 64,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Below this width there isn't room for full labels everywhere,
-            // so we switch to a text-dropdown / overflow-menu layout instead
-            // of letting Flutter squeeze text into a single-character column.
             final compact = constraints.maxWidth < 640;
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -116,16 +117,20 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
           onTap: () => onModeChanged(ViewMode.provincial),
         ),
         const SizedBox(width: 8),
-        _PillButton(label: 'Lance', icon: Icons.person_outline, onTap: () {}),
-        const SizedBox(width: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 160),
+          child: _PillButton(
+            label: _shortLabel,
+            icon: Icons.person_outline,
+            onTap: () {},
+          ),
+        ),
+        const Spacer(),
         _PillButton(label: 'Logout', icon: Icons.logout, onTap: onLogout),
       ],
     );
   }
 
-  /// Text-label dropdown for the view switcher + overflow menu for logout,
-  /// used on phone-width screens. Replaces the old icon-only toggle so the
-  /// current mode is readable instead of relying on icon meaning alone.
   Widget _compactRow(BuildContext context) {
     return Row(
       children: [
@@ -145,26 +150,39 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
         PopupMenuButton<String>(
           padding: EdgeInsets.zero,
           color: AppColors.card,
+          constraints: const BoxConstraints(maxWidth: 150, minWidth: 130),
           icon: const Icon(Icons.more_vert,
               color: AppColors.textSecondary, size: 20),
           onSelected: (v) {
             if (v == 'logout') onLogout();
           },
-          itemBuilder: (context) => const [
+          itemBuilder: (context) => [
             PopupMenuItem(
               enabled: false,
-              child: Text('Signed in as Lance',
-                  style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text('Signed in as $userLabel',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              ),
             ),
-            PopupMenuItem(
+            const PopupMenuItem(
               value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout, size: 16, color: AppColors.red),
-                  SizedBox(width: 8),
-                  Text('Logout', style: TextStyle(color: AppColors.red)),
-                ],
+              height: 36,
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Logout', style: TextStyle(color: AppColors.red)),
+                    SizedBox(width: 6),
+                    Icon(Icons.logout, size: 15, color: AppColors.red),
+                  ],
+                ),
               ),
             ),
           ],
@@ -174,13 +192,6 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// Text-based dropdown for switching between Regional/Provincial view.
-/// Shows the current mode as a readable label ("Regional View ▾") instead
-/// of a bare icon, and opens a menu with full text options.
-///
-/// Built on PopupMenuButton instead of a hand-rolled Overlay/LayerLink so
-/// the menu's position is computed by Flutter itself and always renders
-/// directly attached under the button, regardless of screen width.
 class _ViewDropdown extends StatelessWidget {
   final ViewMode mode;
   final ValueChanged<ViewMode> onModeChanged;
@@ -198,9 +209,6 @@ class _ViewDropdown extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: AppColors.cardBorder),
       ),
-      // Nudges the menu down a bit and keeps its right edge lined up with
-      // the button's right edge (PopupMenuButton anchors from its own
-      // bounds, so this stays correct at any button position on screen).
       offset: const Offset(0, 44),
       onSelected: onModeChanged,
       itemBuilder: (context) => [
@@ -319,12 +327,16 @@ class _PillButton extends StatelessWidget {
                   size: 15,
                   color: filled ? Colors.black : AppColors.textSecondary),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: filled ? Colors.black : AppColors.textSecondary,
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: filled ? Colors.black : AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],

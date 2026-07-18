@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
@@ -25,6 +26,48 @@ class _HomeShellState extends State<HomeShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   ViewMode _mode = ViewMode.regional;
   RegionalModule _module = RegionalModule.overview;
+
+  // Starts as a loading placeholder so the account's email never flashes
+  // on screen before the Firestore displayName lookup resolves.
+  String _userLabel = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDisplayName();
+  }
+
+  /// Looks up the signed-in user's UID in the `users` collection
+  /// (document ID = UID, field = `displayName`) and swaps the top bar
+  /// label to that name once it arrives. If no matching document or field
+  /// exists, the email fallback is used instead of leaving the loading
+  /// placeholder displayed indefinitely.
+  Future<void> _loadDisplayName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
+    final emailFallback = user?.email ?? 'User';
+
+    if (uid == null) {
+      if (mounted) setState(() => _userLabel = emailFallback);
+      return;
+    }
+
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final name = doc.data()?['displayName'] as String?;
+      if (mounted) {
+        setState(() {
+          _userLabel =
+              (name != null && name.trim().isNotEmpty) ? name : emailFallback;
+        });
+      }
+    } catch (_) {
+      // Firestore lookup failed (offline, missing doc, etc.) — fall back
+      // to the email instead of leaving the loading placeholder stuck.
+      if (mounted) setState(() => _userLabel = emailFallback);
+    }
+  }
 
   Widget _regionalContent() {
     switch (_module) {
@@ -74,6 +117,7 @@ class _HomeShellState extends State<HomeShell> {
       appBar: TopBar(
         mode: _mode,
         showMenuButton: showDrawer,
+        userLabel: _userLabel,
         onModeChanged: (m) => setState(() => _mode = m),
         onLogout: () async {
           await FirebaseAuth.instance.signOut();
@@ -90,9 +134,11 @@ class _HomeShellState extends State<HomeShell> {
                   children: [
                     SizedBox(
                       width: 240,
-                      child: Sidebar(selected: _module, onSelect: _selectModule),
+                      child:
+                          Sidebar(selected: _module, onSelect: _selectModule),
                     ),
-                    const VerticalDivider(width: 1, color: AppColors.sidebarBorder),
+                    const VerticalDivider(
+                        width: 1, color: AppColors.sidebarBorder),
                     Expanded(child: _regionalContent()),
                   ],
                 )
