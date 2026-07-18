@@ -1,28 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../models/cve_finding_model.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
-class VulnerabilitiesContent extends StatelessWidget {
+class VulnerabilitiesContent extends StatefulWidget {
   const VulnerabilitiesContent({super.key});
 
-  static const _cves = [
-    [
-      'CVE-2023-38408',
-      'CRITICAL',
-      '9.8',
-      'openssh-server (9.3p1)',
-      'rizal-po-agent'
-    ],
-    ['CVE-2023-4863', 'CRITICAL', '9', 'libwebp (1.0.3)', 'batangas-hub'],
-    [
-      'CVE-2022-22965',
-      'HIGH',
-      '8.8',
-      'spring-framework (5.3.16)',
-      'cavite-po-agent'
-    ],
-    ['CVE-2021-3156', 'HIGH', '7.5', 'sudo (1.8.31)', 'laguna-po-agent'],
-  ];
+  @override
+  State<VulnerabilitiesContent> createState() =>
+      _VulnerabilitiesContentState();
+}
+
+class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
+  final _cvesRef = FirebaseFirestore.instance.collection('cve_findings');
+  bool _seeding = false;
 
   @override
   Widget build(BuildContext context) {
@@ -31,65 +23,137 @@ class VulnerabilitiesContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PageHeader(
-            title: 'Vulnerability Detector',
-            subtitle:
-                'Discovered CVEs mapped from the OS and application layer.',
-            trailing: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _statPill('12', 'CRITICAL', AppColors.red),
-                _statPill('34', 'HIGH', AppColors.orange),
-              ],
-            ),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _cvesRef.snapshots(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? const [];
+              final cves = docs.map(CveFinding.fromFirestore).toList();
+              final criticalCount =
+                  cves.where((c) => c.severity == 'CRITICAL').length;
+              final highCount =
+                  cves.where((c) => c.severity == 'HIGH').length;
+
+              return PageHeader(
+                title: 'Vulnerability Detector',
+                subtitle:
+                    'Discovered CVEs mapped from the OS and application layer.',
+                trailing: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _statPill('$criticalCount', 'CRITICAL', AppColors.red),
+                    _statPill('$highCount', 'HIGH', AppColors.orange),
+                    OutlinedButton.icon(
+                      onPressed: _seeding ? null : _seedDemoData,
+                      icon: _seeding
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.dataset_outlined, size: 16),
+                      label: Text(_seeding ? 'Seeding...' : 'Seed Demo Data'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        side: const BorderSide(color: AppColors.cardBorder),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // A 5-column table (CVE ID, severity badge, CVSS score,
-              // affected package, agent) has no room to breathe below this
-              // width — package strings like "spring-framework (5.3.16)"
-              // get clipped mid-word on a horizontal scroll. Below the
-              // breakpoint, switch to a tappable card per CVE instead, and
-              // let tapping any card open a large, easy-to-read detail view.
-              final narrow = constraints.maxWidth < 640;
-              return DashCard(
-                child: narrow
-                    ? _cveCardList(context)
-                    : HScrollBox(
-                        minWidth: 640,
-                        child: SimpleTable(
-                          headers: const [
-                            'CVE ID',
-                            'SEVERITY',
-                            'CVSS SCORE',
-                            'AFFECTED PACKAGE',
-                            'AGENT'
-                          ],
-                          flex: const [2, 2, 2, 3, 2],
-                          rows: [
-                            for (final c in _cves)
-                              [
-                                CellText(c[0],
-                                    color: AppColors.teal,
-                                    weight: FontWeight.w600),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: StatusBadge(
-                                    label: c[1],
-                                    color: c[1] == 'CRITICAL'
-                                        ? AppColors.red
-                                        : AppColors.orange,
-                                  ),
-                                ),
-                                CellText(c[2]),
-                                CellText(c[3], color: AppColors.textSecondary),
-                                CellText(c[4], color: AppColors.textSecondary),
-                              ],
-                          ],
-                        ),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _cvesRef.snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return DashCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text('Failed to load CVEs: ${snapshot.error}',
+                        style: const TextStyle(color: AppColors.red)),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final cves =
+                  snapshot.data!.docs.map(CveFinding.fromFirestore).toList();
+
+              if (cves.isEmpty) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'No CVE findings yet. Use "Seed Demo Data".',
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 13),
+                        textAlign: TextAlign.center,
                       ),
+                    ),
+                  ),
+                );
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  // A 5-column table (CVE ID, severity badge, CVSS score,
+                  // affected package, agent) has no room to breathe below
+                  // this width — package strings like
+                  // "spring-framework (5.3.16)" get clipped mid-word on a
+                  // horizontal scroll. Below the breakpoint, switch to a
+                  // tappable card per CVE instead, and let tapping any card
+                  // open a large, easy-to-read detail view.
+                  final narrow = constraints.maxWidth < 640;
+                  return DashCard(
+                    child: narrow
+                        ? _cveCardList(context, cves)
+                        : HScrollBox(
+                            minWidth: 640,
+                            child: SimpleTable(
+                              headers: const [
+                                'CVE ID',
+                                'SEVERITY',
+                                'CVSS SCORE',
+                                'AFFECTED PACKAGE',
+                                'AGENT'
+                              ],
+                              flex: const [2, 2, 2, 3, 2],
+                              rows: [
+                                for (final c in cves)
+                                  [
+                                    CellText(c.cveId,
+                                        color: AppColors.teal,
+                                        weight: FontWeight.w600),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: StatusBadge(
+                                        label: c.severity,
+                                        color: c.severity == 'CRITICAL'
+                                            ? AppColors.red
+                                            : AppColors.orange,
+                                      ),
+                                    ),
+                                    CellText(c.cvssScore),
+                                    CellText(c.affectedPackage,
+                                        color: AppColors.textSecondary),
+                                    CellText(c.agentName,
+                                        color: AppColors.textSecondary),
+                                  ],
+                              ],
+                            ),
+                          ),
+                  );
+                },
               );
             },
           ),
@@ -101,12 +165,12 @@ class VulnerabilitiesContent extends StatelessWidget {
   /// Mobile-width replacement for the 5-column table: one tappable card
   /// per CVE carrying the same fields, laid out top-to-bottom so nothing
   /// needs a sideways scroll or gets clipped mid-word.
-  Widget _cveCardList(BuildContext context) {
+  Widget _cveCardList(BuildContext context, List<CveFinding> cves) {
     return Column(
       children: [
-        for (int i = 0; i < _cves.length; i++) ...[
-          _CveCard(cve: _cves[i]),
-          if (i != _cves.length - 1) const SizedBox(height: 10),
+        for (int i = 0; i < cves.length; i++) ...[
+          _CveCard(cve: cves[i]),
+          if (i != cves.length - 1) const SizedBox(height: 10),
         ],
       ],
     );
@@ -134,14 +198,71 @@ class VulnerabilitiesContent extends StatelessWidget {
       ),
     );
   }
+
+  /// TEMPORARY: seeds 4 demo CVE findings via WriteBatch. Real findings
+  /// would eventually come from the heuristic engine cross-referencing
+  /// agent OS/package metadata against a CVE feed — remove or gate behind
+  /// a debug flag before any production-style deployment.
+  Future<void> _seedDemoData() async {
+    setState(() => _seeding = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      const seed = [
+        {
+          'cve_id': 'CVE-2023-38408',
+          'severity': 'CRITICAL',
+          'cvss_score': '9.8',
+          'affected_package': 'openssh-server (9.3p1)',
+          'agent_name': 'rizal-po-agent',
+        },
+        {
+          'cve_id': 'CVE-2023-4863',
+          'severity': 'CRITICAL',
+          'cvss_score': '9.0',
+          'affected_package': 'libwebp (1.0.3)',
+          'agent_name': 'batangas-hub',
+        },
+        {
+          'cve_id': 'CVE-2022-22965',
+          'severity': 'HIGH',
+          'cvss_score': '8.8',
+          'affected_package': 'spring-framework (5.3.16)',
+          'agent_name': 'cavite-po-agent',
+        },
+        {
+          'cve_id': 'CVE-2021-3156',
+          'severity': 'HIGH',
+          'cvss_score': '7.5',
+          'affected_package': 'sudo (1.8.31)',
+          'agent_name': 'laguna-po-agent',
+        },
+      ];
+      for (final c in seed) {
+        batch.set(_cvesRef.doc(), c);
+      }
+      await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Seeded 4 demo CVE findings.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Seeding failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _seeding = false);
+    }
+  }
 }
 
 class _CveCard extends StatelessWidget {
-  final List<String> cve;
+  final CveFinding cve;
 
   const _CveCard({required this.cve});
 
-  bool get _critical => cve[1] == 'CRITICAL';
+  bool get _critical => cve.severity == 'CRITICAL';
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +287,7 @@ class _CveCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      cve[0],
+                      cve.cveId,
                       style: const TextStyle(
                         color: AppColors.teal,
                         fontWeight: FontWeight.w600,
@@ -174,12 +295,12 @@ class _CveCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  StatusBadge(label: cve[1], color: severityColor),
+                  StatusBadge(label: cve.severity, color: severityColor),
                 ],
               ),
               const SizedBox(height: 10),
               Text(
-                cve[3],
+                cve.affectedPackage,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
@@ -191,8 +312,9 @@ class _CveCard extends StatelessWidget {
                 spacing: 14,
                 runSpacing: 6,
                 children: [
-                  _metaChip(Icons.speed, 'CVSS ${cve[2]}', severityColor),
-                  _metaChip(Icons.dns_outlined, cve[4], AppColors.textMuted),
+                  _metaChip(Icons.speed, 'CVSS ${cve.cvssScore}', severityColor),
+                  _metaChip(
+                      Icons.dns_outlined, cve.agentName, AppColors.textMuted),
                 ],
               ),
               const SizedBox(height: 6),
@@ -251,9 +373,8 @@ class _CveCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Large, easy-to-read CVE ID as the headline.
               Text(
-                cve[0],
+                cve.cveId,
                 style: const TextStyle(
                   color: AppColors.teal,
                   fontWeight: FontWeight.bold,
@@ -261,14 +382,14 @@ class _CveCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              StatusBadge(label: cve[1], color: severityColor),
+              StatusBadge(label: cve.severity, color: severityColor),
               const SizedBox(height: 24),
-              _detailRow('CVSS SCORE', cve[2],
+              _detailRow('CVSS SCORE', cve.cvssScore,
                   valueColor: severityColor, big: true),
               const SizedBox(height: 18),
-              _detailRow('AFFECTED PACKAGE', cve[3]),
+              _detailRow('AFFECTED PACKAGE', cve.affectedPackage),
               const SizedBox(height: 18),
-              _detailRow('AFFECTED AGENT', cve[4]),
+              _detailRow('AFFECTED AGENT', cve.agentName),
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
