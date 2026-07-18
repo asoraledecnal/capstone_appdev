@@ -21,22 +21,6 @@ class _OverviewContentState extends State<OverviewContent> {
   final _tacticsRef = FirebaseFirestore.instance.collection('mitre_tactics');
   final _eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
   bool _seeding = false;
-  static const _previewLimit = 5;
-  static const _severityFilters = ['All', 'Critical', 'High', 'Medium', 'Low'];
-  String _selectedSeverity = 'All';
-  String _selectedAgent = 'All';
-
-  static List<T> _distinctBy<T, K>(List<T> items, K Function(T) key) {
-    final seen = <K>{};
-    final unique = <T>[];
-    for (final item in items) {
-      final value = key(item);
-      if (seen.add(value)) {
-        unique.add(item);
-      }
-    }
-    return unique;
-  }
 
   /// Maps a Wazuh rule level to the same red/orange/teal scale used
   /// elsewhere: 12+ critical, 8-11 high, below that informational.
@@ -164,8 +148,7 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final agents =
-              snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+          final agents = snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -189,8 +172,8 @@ class _OverviewContentState extends State<OverviewContent> {
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No agents yet. Use "Seed Demo Data".',
-                    style:
-                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
@@ -256,10 +239,8 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _eventEvolutionCard() {
     return DashCard(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _eventsRef
-            .orderBy('timestamp', descending: true)
-            .limit(17)
-            .snapshots(),
+        stream:
+            _eventsRef.orderBy('timestamp', descending: true).limit(17).snapshots(),
         builder: (context, snapshot) {
           final docs = snapshot.data?.docs ?? const [];
           final events =
@@ -281,10 +262,8 @@ class _OverviewContentState extends State<OverviewContent> {
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 15)),
-                  _LegendDot(
-                      color: AppColors.red, label: 'Level 12+ (Critical)'),
-                  _LegendDot(
-                      color: AppColors.orange, label: 'Level 8-11 (High)'),
+                  _LegendDot(color: AppColors.red, label: 'Level 12+ (Critical)'),
+                  _LegendDot(color: AppColors.orange, label: 'Level 8-11 (High)'),
                 ],
               ),
               const SizedBox(height: 16),
@@ -390,8 +369,8 @@ class _OverviewContentState extends State<OverviewContent> {
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No tactic data yet. Use "Seed Demo Data".',
-                    style:
-                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
@@ -439,10 +418,8 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _eventStreamCard(BuildContext context) {
     return DashCard(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _eventsRef
-            .orderBy('timestamp', descending: true)
-            .limit(100)
-            .snapshots(),
+        stream:
+            _eventsRef.orderBy('timestamp', descending: true).limit(100).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(
@@ -457,22 +434,7 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final events =
-              snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
-          final uniqueEvents = _distinctBy(events, (WazuhEvent e) => e.id);
-          final filteredEvents = uniqueEvents.where((e) {
-            final severityLabel = _severityLabel(e.level);
-            if (_selectedSeverity != 'All' &&
-                severityLabel != _selectedSeverity) {
-              return false;
-            }
-            if (_selectedAgent != 'All' && e.agent != _selectedAgent) {
-              return false;
-            }
-            return true;
-          }).toList();
-          final previewEvents = filteredEvents.take(_previewLimit).toList();
-          final hasMoreEvents = filteredEvents.length > _previewLimit;
+          final events = snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -485,115 +447,79 @@ class _OverviewContentState extends State<OverviewContent> {
                   _RefreshRow(),
                 ],
               ),
-              const SizedBox(height: 10),
-              _eventFilters(uniqueEvents),
               const SizedBox(height: 8),
-              if (uniqueEvents.isEmpty)
+              if (events.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
                     'No events yet. Use "Seed Demo Data".',
-                    style:
-                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                )
-              else if (filteredEvents.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'No events match the current filters.',
-                    style:
-                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final narrow = constraints.maxWidth < 560;
-                        if (narrow) {
-                          return _eventCardList(context, previewEvents);
-                        }
-                        return HScrollBox(
-                          minWidth: 620,
-                          child: SimpleTable(
-                            headers: const [
-                              'TIMESTAMP',
-                              'AGENT',
-                              'RULE ID',
-                              'LEVEL',
-                              'DESCRIPTION'
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 560;
+                    if (narrow) {
+                      return _eventCardList(context, events);
+                    }
+                    return HScrollBox(
+                      minWidth: 620,
+                      child: SimpleTable(
+                        headers: const [
+                          'TIMESTAMP',
+                          'AGENT',
+                          'RULE ID',
+                          'LEVEL',
+                          'DESCRIPTION'
+                        ],
+                        flex: const [2, 3, 2, 1, 5],
+                        align: const [
+                          Alignment.centerLeft,
+                          Alignment.centerLeft,
+                          Alignment.centerLeft,
+                          Alignment.center,
+                          Alignment.centerLeft,
+                        ],
+                        rows: [
+                          for (final e in events)
+                            [
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(_formatTime(e.timestamp),
+                                    color: AppColors.textSecondary),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(e.agent, color: AppColors.teal),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(e.ruleId, color: AppColors.teal),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                StatusBadge(
+                                  label: '${e.level}',
+                                  color: _levelColor(e.level),
+                                ),
+                              ),
+                              _tappableCell(
+                                context,
+                                e,
+                                CellText(e.description,
+                                    color: AppColors.textSecondary),
+                              ),
                             ],
-                            flex: const [2, 3, 2, 1, 5],
-                            align: const [
-                              Alignment.centerLeft,
-                              Alignment.centerLeft,
-                              Alignment.centerLeft,
-                              Alignment.center,
-                              Alignment.centerLeft,
-                            ],
-                            rows: [
-                              for (final e in previewEvents)
-                                [
-                                  _tappableCell(
-                                    context,
-                                    e,
-                                    CellText(_formatTime(e.timestamp),
-                                        color: AppColors.textSecondary),
-                                  ),
-                                  _tappableCell(
-                                    context,
-                                    e,
-                                    CellText(e.agent, color: AppColors.teal),
-                                  ),
-                                  _tappableCell(
-                                    context,
-                                    e,
-                                    CellText(e.ruleId, color: AppColors.teal),
-                                  ),
-                                  _tappableCell(
-                                    context,
-                                    e,
-                                    StatusBadge(
-                                      label: '${e.level}',
-                                      color: _levelColor(e.level),
-                                    ),
-                                  ),
-                                  _tappableCell(
-                                    context,
-                                    e,
-                                    CellText(e.description,
-                                        color: AppColors.textSecondary),
-                                  ),
-                                ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    if (hasMoreEvents)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: OutlinedButton.icon(
-                            onPressed: () =>
-                                _showAllEventsSheet(context, filteredEvents),
-                            icon: const Icon(Icons.unfold_more,
-                                size: 16, color: AppColors.teal),
-                            label: const Text('View All Events',
-                                style: TextStyle(color: AppColors.teal)),
-                            style: OutlinedButton.styleFrom(
-                              side:
-                                  const BorderSide(color: AppColors.cardBorder),
-                              foregroundColor: AppColors.teal,
-                            ),
-                          ),
-                        ),
+                        ],
                       ),
-                  ],
+                    );
+                  },
                 ),
             ],
           );
@@ -609,249 +535,6 @@ class _OverviewContentState extends State<OverviewContent> {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: child,
       ),
-    );
-  }
-
-  Widget _eventFilters(List<WazuhEvent> events) {
-    final agents = [
-      'All',
-      ...events.map((e) => e.agent).where((a) => a.isNotEmpty).toSet().toList()
-        ..sort(),
-    ];
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _filterDropdown(
-          label: 'Severity',
-          value: _selectedSeverity,
-          items: _severityFilters,
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _selectedSeverity = value);
-          },
-        ),
-        _filterDropdown(
-          label: 'Agent',
-          value: _selectedAgent,
-          items: agents,
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _selectedAgent = value);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _filterDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButton<String>(
-          value: value,
-          underline: const SizedBox.shrink(),
-          borderRadius: BorderRadius.circular(10),
-          icon:
-              const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-          dropdownColor: AppColors.card,
-          items: items
-              .map((item) => DropdownMenuItem(
-                    value: item,
-                    child: Text(item,
-                        style: const TextStyle(color: AppColors.textPrimary)),
-                  ))
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
-  String _severityLabel(int level) {
-    if (level >= 12) return 'Critical';
-    if (level >= 8) return 'High';
-    if (level >= 4) return 'Medium';
-    return 'Low';
-  }
-
-  void _showAllEventsSheet(BuildContext context, List<WazuhEvent> events) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.75,
-          minChildSize: 0.4,
-          maxChildSize: 0.92,
-          builder: (context, scrollController) {
-            return SafeArea(
-              top: false,
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color:
-                                AppColors.teal.withAlpha((0.12 * 255).round()),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.event_note,
-                              size: 18, color: AppColors.teal),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text('All Events',
-                              style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1, color: AppColors.cardBorder),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        final event = events[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: () => _showEventDetails(context, event),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border:
-                                      Border.all(color: AppColors.cardBorder),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            event.ruleId,
-                                            style: const TextStyle(
-                                              color: AppColors.teal,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ),
-                                        StatusBadge(
-                                          label: '${event.level}',
-                                          color: _levelColor(event.level),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      event.description,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                        height: 1.35,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Wrap(
-                                      spacing: 10,
-                                      runSpacing: 6,
-                                      children: [
-                                        _metaChip(Icons.dns_outlined,
-                                            event.agent, AppColors.teal),
-                                        _metaChip(
-                                            Icons.access_time,
-                                            _formatTime(event.timestamp),
-                                            AppColors.textMuted),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
-                          side: const BorderSide(color: AppColors.cardBorder),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text('Close'),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _metaChip(IconData icon, String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 11.5)),
-      ],
     );
   }
 
@@ -973,8 +656,7 @@ class _OverviewContentState extends State<OverviewContent> {
                       fontWeight: FontWeight.bold,
                       fontSize: 16)),
             ),
-            StatusBadge(
-                label: '${event.level}', color: _levelColor(event.level)),
+            StatusBadge(label: '${event.level}', color: _levelColor(event.level)),
           ],
         ),
         content: SizedBox(
@@ -1135,7 +817,11 @@ class _OverviewContentState extends State<OverviewContent> {
           'score': 0.68,
           'severity': 'Critical'
         },
-        {'tactic_name': 'Credential\nAccess', 'score': 0.4, 'severity': 'High'},
+        {
+          'tactic_name': 'Credential\nAccess',
+          'score': 0.4,
+          'severity': 'High'
+        },
         {'tactic_name': 'Discovery', 'score': 0.6, 'severity': 'Low'},
       ];
       for (final t in tacticSeed) {
