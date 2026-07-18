@@ -1,55 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../models/wazuh_agent_model.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
+/// Full agent inventory. Reads from the same `wazuh_agents` collection as
+/// the Overview dashboard's "Agent Status" panel — same records, just
+/// showing every field instead of a quick status summary. Use Overview's
+/// "Seed Demo Data" button to populate this collection if it's empty.
 class EndpointSecurityContent extends StatelessWidget {
   const EndpointSecurityContent({super.key});
 
-  static const _agents = [
-    [
-      'batangas-hub',
-      '000',
-      '10.0.0.1',
-      'Ubuntu 22.04.3 LTS',
-      'Wazuh v4.8.0',
-      true
-    ],
-    [
-      'cavite-po-agent',
-      '001',
-      '10.0.1.5',
-      'Windows Server 2022',
-      'Wazuh v4.8.0',
-      true
-    ],
-    [
-      'laguna-po-agent',
-      '002',
-      '10.0.2.10',
-      'Ubuntu 20.04 LTS',
-      'Wazuh v4.7.2',
-      true
-    ],
-    [
-      'rizal-po-agent',
-      '003',
-      '10.0.3.15',
-      'Windows 10 Pro',
-      'Wazuh v4.8.0',
-      false
-    ],
-    [
-      'quezon-po-agent',
-      '004',
-      '10.0.4.22',
-      'CentOS Linux 8',
-      'Wazuh v4.8.0',
-      true
-    ],
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final agentsRef = FirebaseFirestore.instance.collection('wazuh_agents');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -61,54 +26,99 @@ class EndpointSecurityContent extends StatelessWidget {
                 'Manage and monitor all registered agents across Region 4A.',
           ),
           const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // A 6-column table (name, id, ip, os, version, status) needs
-              // real width to stay readable — below this breakpoint a
-              // horizontal-scroll table only ever shows a partial slice of
-              // columns on a phone. Cards show every field for an agent at
-              // once, just by scrolling down like the rest of the page.
-              final narrow = constraints.maxWidth < 720;
-              if (narrow) {
-                return _agentCardList();
-              }
-              return DashCard(
-                child: HScrollBox(
-                  minWidth: 680,
-                  child: SimpleTable(
-                    headers: const [
-                      'AGENT NAME',
-                      'ID',
-                      'IP ADDRESS',
-                      'OS/VERSION',
-                      'VERSION',
-                      'STATUS'
-                    ],
-                    flex: const [3, 1, 2, 3, 2, 2],
-                    rows: [
-                      for (final a in _agents)
-                        [
-                          CellText(a[0] as String, weight: FontWeight.w600),
-                          CellText(a[1] as String,
-                              color: AppColors.textSecondary),
-                          CellText(a[2] as String, color: AppColors.teal),
-                          CellText(a[3] as String,
-                              color: AppColors.textSecondary),
-                          CellText(a[4] as String,
-                              color: AppColors.textSecondary),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: StatusBadge(
-                              label: (a[5] as bool) ? 'ACTIVE' : 'INACTIVE',
-                              color: (a[5] as bool)
-                                  ? AppColors.teal
-                                  : AppColors.red,
-                            ),
-                          ),
-                        ],
-                    ],
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: agentsRef.orderBy('name').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return DashCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Failed to load agents: ${snapshot.error}',
+                      style: const TextStyle(color: AppColors.red),
+                    ),
                   ),
-                ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final agents =
+                  snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+
+              if (agents.isEmpty) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'No agents yet. Go to Overview and use '
+                        '"Seed Demo Data", or add agents from your Wazuh '
+                        'pipeline.',
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  // A 6-column table (name, id, ip, os, version, status)
+                  // needs real width to stay readable — below this
+                  // breakpoint a horizontal-scroll table only ever shows a
+                  // partial slice of columns on a phone. Cards show every
+                  // field for an agent at once, just by scrolling down
+                  // like the rest of the page.
+                  final narrow = constraints.maxWidth < 720;
+                  if (narrow) {
+                    return _agentCardList(agents);
+                  }
+                  return DashCard(
+                    child: HScrollBox(
+                      minWidth: 680,
+                      child: SimpleTable(
+                        headers: const [
+                          'AGENT NAME',
+                          'ID',
+                          'IP ADDRESS',
+                          'OS/VERSION',
+                          'VERSION',
+                          'STATUS'
+                        ],
+                        flex: const [3, 1, 2, 3, 2, 2],
+                        rows: [
+                          for (final a in agents)
+                            [
+                              CellText(a.name, weight: FontWeight.w600),
+                              CellText(a.agentId,
+                                  color: AppColors.textSecondary),
+                              CellText(a.ip, color: AppColors.teal),
+                              CellText(a.os, color: AppColors.textSecondary),
+                              CellText(a.version,
+                                  color: AppColors.textSecondary),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: StatusBadge(
+                                  label: a.active ? 'ACTIVE' : 'INACTIVE',
+                                  color: a.active
+                                      ? AppColors.teal
+                                      : AppColors.red,
+                                ),
+                              ),
+                            ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -120,16 +130,16 @@ class EndpointSecurityContent extends StatelessWidget {
   /// Mobile-width replacement for the agent table: one card per agent with
   /// every field (ID, IP, OS/version, agent version, status) laid out and
   /// fully visible, no sideways scrolling required.
-  Widget _agentCardList() {
+  Widget _agentCardList(List<WazuhAgent> agents) {
     return Column(
       children: [
-        for (final a in _agents) _agentCard(a),
+        for (final a in agents) _agentCard(a),
       ],
     );
   }
 
-  Widget _agentCard(List<Object> a) {
-    final active = a[5] as bool;
+  Widget _agentCard(WazuhAgent a) {
+    final active = a.active;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
@@ -154,7 +164,7 @@ class EndpointSecurityContent extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  a[0] as String,
+                  a.name,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
@@ -170,10 +180,10 @@ class EndpointSecurityContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _fieldRow('ID', a[1] as String),
-          _fieldRow('IP ADDRESS', a[2] as String, valueColor: AppColors.teal),
-          _fieldRow('OS / VERSION', a[3] as String),
-          _fieldRow('AGENT VERSION', a[4] as String),
+          _fieldRow('ID', a.agentId),
+          _fieldRow('IP ADDRESS', a.ip, valueColor: AppColors.teal),
+          _fieldRow('OS / VERSION', a.os),
+          _fieldRow('AGENT VERSION', a.version),
         ],
       ),
     );
