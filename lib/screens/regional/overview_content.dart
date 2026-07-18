@@ -730,6 +730,26 @@ class _OverviewContentState extends State<OverviewContent> {
   Future<void> _seedDemoData() async {
     setState(() => _seeding = true);
     try {
+      // Clear any previously-seeded demo data first so clicking this
+      // button more than once can't pile up duplicate agents/tactics —
+      // each click resets to a clean, known demo state instead of adding
+      // on top of whatever's already there.
+      final existingAgents = await _agentsRef.get();
+      final existingTactics = await _tacticsRef.get();
+      final existingEvents = await _eventsRef.get();
+
+      final clearBatch = FirebaseFirestore.instance.batch();
+      for (final doc in existingAgents.docs) {
+        clearBatch.delete(doc.reference);
+      }
+      for (final doc in existingTactics.docs) {
+        clearBatch.delete(doc.reference);
+      }
+      for (final doc in existingEvents.docs) {
+        clearBatch.delete(doc.reference);
+      }
+      await clearBatch.commit();
+
       final batch = FirebaseFirestore.instance.batch();
 
       const agentSeed = [

@@ -252,6 +252,14 @@ class _ThreatIntelligenceContentState
   Future<void> _seedDemoData() async {
     setState(() => _seeding = true);
     try {
+      // Clear existing demo IoCs first so repeated clicks don't duplicate.
+      final existing = await _iocsRef.get();
+      final clearBatch = FirebaseFirestore.instance.batch();
+      for (final doc in existing.docs) {
+        clearBatch.delete(doc.reference);
+      }
+      await clearBatch.commit();
+
       final batch = FirebaseFirestore.instance.batch();
       final now = DateTime.now();
       final seed = [

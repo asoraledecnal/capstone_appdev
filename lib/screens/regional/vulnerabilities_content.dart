@@ -206,6 +206,14 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
   Future<void> _seedDemoData() async {
     setState(() => _seeding = true);
     try {
+      // Clear existing demo CVEs first so repeated clicks don't duplicate.
+      final existing = await _cvesRef.get();
+      final clearBatch = FirebaseFirestore.instance.batch();
+      for (final doc in existing.docs) {
+        clearBatch.delete(doc.reference);
+      }
+      await clearBatch.commit();
+
       final batch = FirebaseFirestore.instance.batch();
       const seed = [
         {
