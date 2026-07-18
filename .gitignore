@@ -45,3 +45,7 @@ app.*.map.json
 /android/app/release
 
 node_modules/
+
+# Firebase Admin SDK Secrets
+service-account-key.json
+*-key.json

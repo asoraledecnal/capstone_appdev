@@ -1,4 +1,5 @@
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 
 // 1. UPDATE THIS PATH TO YOUR SERVICE ACCOUNT JSON FILE
@@ -13,11 +14,11 @@ if (!fs.existsSync(serviceAccountPath)) {
 
 const serviceAccount = require(serviceAccountPath);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+initializeApp({
+  credential: cert(serviceAccount)
 });
 
-const db = admin.firestore();
+const db = getFirestore();
 
 const tenantSpokeIds = {
   'Cavite Provincial Office': 'SPOKE-01',
@@ -114,7 +115,7 @@ async function seedData() {
         const ref = eventsRef.doc();
         const pastTime = new Date(now.getTime() - (4 + i * 13) * 60000);
         batch.set(ref, {
-          timestamp: admin.firestore.Timestamp.fromDate(pastTime),
+          timestamp: Timestamp.fromDate(pastTime),
           agent: `${prefix.toLowerCase()}-po-agent`,
           rule_id: `${5000 + Math.floor(Math.random() * 5000)}`,
           level: 0,
