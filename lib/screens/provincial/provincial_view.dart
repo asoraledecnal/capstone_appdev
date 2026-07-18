@@ -66,74 +66,72 @@ class _ProvincialViewState extends State<ProvincialView> {
           // hand-rolled Overlay/LayerLink so the menu's position is
           // computed by Flutter itself and always renders directly
           // attached under the button, regardless of screen width.
-          Row(
-            children: [
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width - 40),
-                  child: PopupMenuButton<String>(
-                    color: AppColors.card,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: AppColors.cardBorder),
-                    ),
-                    offset: const Offset(0, 46),
-                    onSelected: (t) => setState(() => _selectedTenant = t),
-                    itemBuilder: (context) => [
-                      for (final t in _tenants)
-                        PopupMenuItem(
-                          value: t,
-                          child: Text(
-                            t,
-                            style: TextStyle(
-                              color: t == _selectedTenant
-                                  ? AppColors.teal
-                                  : AppColors.textSecondary,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
-                            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tenantDropdown = ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width - 40),
+                child: PopupMenuButton<String>(
+                  color: AppColors.card,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: const BorderSide(color: AppColors.cardBorder),
+                  ),
+                  offset: const Offset(0, 46),
+                  onSelected: (t) => setState(() => _selectedTenant = t),
+                  itemBuilder: (context) => [
+                    for (final t in _tenants)
+                      PopupMenuItem(
+                        value: t,
+                        child: Text(
+                          t,
+                          style: TextStyle(
+                            color: t == _selectedTenant
+                                ? AppColors.teal
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13,
                           ),
                         ),
-                    ],
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.card,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.cardBorder),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.location_on_outlined,
-                              size: 16, color: AppColors.teal),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              'Tenant: $_selectedTenant',
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13),
-                            ),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 16, color: AppColors.teal),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Tenant: $_selectedTenant',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13),
                           ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 18,
-                            color: AppColors.textSecondary,
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              OutlinedButton.icon(
+              );
+
+              final seedButton = OutlinedButton.icon(
                 onPressed: _seeding ? null : _seedDemoData,
                 icon: _seeding
                     ? const SizedBox(
@@ -147,8 +145,28 @@ class _ProvincialViewState extends State<ProvincialView> {
                   foregroundColor: AppColors.textSecondary,
                   side: const BorderSide(color: AppColors.cardBorder),
                 ),
-              ),
-            ],
+              );
+
+              // Stack vertically below ~500px so the seed button never gets
+              // squeezed off-screen next to the dropdown on a phone.
+              if (constraints.maxWidth < 500) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    tenantDropdown,
+                    const SizedBox(height: 10),
+                    seedButton,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: tenantDropdown),
+                  const SizedBox(width: 10),
+                  seedButton,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
@@ -182,10 +200,10 @@ class _ProvincialViewState extends State<ProvincialView> {
                     borderRadius: BorderRadius.circular(20),
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Live sync active — this view streams directly '
-                            'from Firestore in real time, no manual sync '
+                            '$_selectedTenant is synced live with the '
+                            'Batangas Hub via Firestore — no manual sync '
                             'needed.',
                           ),
                         ),
@@ -351,13 +369,13 @@ class _ProvincialViewState extends State<ProvincialView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
+                    const Wrap(
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 12,
                       runSpacing: 6,
                       children: [
-                        const _TitleWithIcon(),
-                        const _RefreshLabel(),
+                        _TitleWithIcon(),
+                        _RefreshLabel(),
                       ],
                     ),
                     const SizedBox(height: 8),
