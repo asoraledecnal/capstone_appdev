@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../models/compliance_record_model.dart';
+import '../../services/compliance_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -7,6 +9,8 @@ class RegulatoryComplianceContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repository = ComplianceRepository();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -18,31 +22,62 @@ class RegulatoryComplianceContent extends StatelessWidget {
                 'Agent status against established frameworks (CIS, PCI DSS, NIST).',
           ),
           const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cards = [
-                _complianceCard(
-                  icon: Icons.fact_check_outlined,
-                  title: 'CIS Benchmark',
-                  percent: 0.82,
-                  passed: 1450,
-                  failed: 318,
-                ),
-                _complianceCard(
-                  icon: Icons.shield_outlined,
-                  title: 'PCI DSS',
-                  percent: 0.95,
-                  passed: 890,
-                  failed: 46,
-                ),
-                _complianceCard(
-                  icon: Icons.donut_small_outlined,
-                  title: 'NIST 800-53',
-                  percent: 0.76,
-                  passed: 2100,
-                  failed: 660,
-                ),
-              ];
+          StreamBuilder<List<ComplianceRecord>>(
+            stream: repository.watchRecords(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return DashCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text('Failed to load compliance data: ${snapshot.error}',
+                        style: const TextStyle(color: AppColors.red)),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final records = snapshot.data!;
+              if (records.isEmpty) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'No compliance records yet.',
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final cards = records.map((r) {
+                    IconData icon;
+                    if (r.framework.contains('CIS')) {
+                      icon = Icons.fact_check_outlined;
+                    } else if (r.framework.contains('PCI')) {
+                      icon = Icons.shield_outlined;
+                    } else {
+                      icon = Icons.donut_small_outlined;
+                    }
+                    return _complianceCard(
+                      icon: icon,
+                      title: r.framework,
+                      percent: r.percent,
+                      passed: r.passed,
+                      failed: r.failed,
+                    );
+                  }).toList();
 
               if (constraints.maxWidth < 560) {
                 // Stack one per row on phones.
@@ -76,11 +111,14 @@ class RegulatoryComplianceContent extends StatelessWidget {
                 ],
               );
             },
-          ),
+          );
+        },
+      ),
         ],
       ),
     );
   }
+
 
   Widget _complianceCard({
     required IconData icon,

@@ -1,11 +1,11 @@
-import 'dart:math';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../models/wazuh_agent_model.dart';
 import '../../models/mitre_tactic_model.dart';
 import '../../models/wazuh_event_model.dart';
+import '../../services/wazuh_agent_repository.dart';
+import '../../services/mitre_tactic_repository.dart';
+import '../../services/wazuh_event_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -17,10 +17,9 @@ class OverviewContent extends StatefulWidget {
 }
 
 class _OverviewContentState extends State<OverviewContent> {
-  final _agentsRef = FirebaseFirestore.instance.collection('wazuh_agents');
-  final _tacticsRef = FirebaseFirestore.instance.collection('mitre_tactics');
-  final _eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
-  bool _seeding = false;
+  final _agentRepository = WazuhAgentRepository();
+  final _mitreRepository = MitreTacticRepository();
+  final _eventRepository = WazuhEventRepository();
 
   /// Maps a Wazuh rule level to the same red/orange/teal scale used
   /// elsewhere: 12+ critical, 8-11 high, below that informational.
@@ -54,20 +53,11 @@ class _OverviewContentState extends State<OverviewContent> {
                     label: 'Wazuh Indexer: OK', color: AppColors.teal),
                 const StatusBadge(
                     label: 'Manager Cluster: OK', color: AppColors.teal),
-                OutlinedButton.icon(
-                  onPressed: _seeding ? null : _seedDemoData,
-                  icon: _seeding
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.dataset_outlined, size: 16),
-                  label: Text(_seeding ? 'Seeding...' : 'Seed Demo Data'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.cardBorder),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: () => setState(() {}),
+                  tooltip: 'Refresh',
+                  color: AppColors.textSecondary,
                 ),
               ],
             ),
@@ -132,8 +122,8 @@ class _OverviewContentState extends State<OverviewContent> {
   // ---------------------------------------------------------------------
   Widget _agentStatusCard() {
     return DashCard(
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _agentsRef.orderBy('name').snapshots(),
+      child: StreamBuilder<List<WazuhAgent>>(
+        stream: _agentRepository.watchAgents(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(
@@ -148,7 +138,7 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final agents = snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+          final agents = snapshot.data!;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -171,7 +161,7 @@ class _OverviewContentState extends State<OverviewContent> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'No agents yet. Use "Seed Demo Data".',
+                    'No agents yet.',
                     style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -238,13 +228,11 @@ class _OverviewContentState extends State<OverviewContent> {
   // ---------------------------------------------------------------------
   Widget _eventEvolutionCard() {
     return DashCard(
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream:
-            _eventsRef.orderBy('timestamp', descending: true).limit(17).snapshots(),
+      child: StreamBuilder<List<WazuhEvent>>(
+        stream: _eventRepository.watchEvents(limit: 17),
         builder: (context, snapshot) {
-          final docs = snapshot.data?.docs ?? const [];
-          final events =
-              docs.map(WazuhEvent.fromFirestore).toList().reversed.toList();
+          final docs = snapshot.data ?? const [];
+          final events = docs.reversed.toList();
           final spots = <FlSpot>[
             for (int i = 0; i < events.length; i++)
               FlSpot(i.toDouble(), events[i].level.toDouble()),
@@ -344,8 +332,8 @@ class _OverviewContentState extends State<OverviewContent> {
   // ---------------------------------------------------------------------
   Widget _mitreCard() {
     return DashCard(
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _tacticsRef.snapshots(),
+      child: StreamBuilder<List<MitreTactic>>(
+        stream: _mitreRepository.watchTactics(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Padding(
@@ -353,8 +341,7 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final tactics =
-              snapshot.data!.docs.map(MitreTactic.fromFirestore).toList();
+          final tactics = snapshot.data!;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -368,7 +355,7 @@ class _OverviewContentState extends State<OverviewContent> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'No tactic data yet. Use "Seed Demo Data".',
+                    'No tactic data yet.',
                     style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -417,9 +404,8 @@ class _OverviewContentState extends State<OverviewContent> {
   // ---------------------------------------------------------------------
   Widget _eventStreamCard(BuildContext context) {
     return DashCard(
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream:
-            _eventsRef.orderBy('timestamp', descending: true).limit(100).snapshots(),
+      child: StreamBuilder<List<WazuhEvent>>(
+        stream: _eventRepository.watchEvents(limit: 100),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(
@@ -434,7 +420,7 @@ class _OverviewContentState extends State<OverviewContent> {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final events = snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
+          final events = snapshot.data!;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -452,7 +438,7 @@ class _OverviewContentState extends State<OverviewContent> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'No events yet. Use "Seed Demo Data".',
+                    'No events yet.',
                     style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -719,155 +705,6 @@ class _OverviewContentState extends State<OverviewContent> {
         ],
       ),
     );
-  }
-
-  // ---------------------------------------------------------------------
-  // TEMPORARY seeder — writes demo agents, tactics, and events. Remove or
-  // gate behind a debug flag before any production-style deployment; the
-  // real data path is Wazuh -> Python heuristic engine -> these same
-  // collections, written server-side via the Admin SDK.
-  // ---------------------------------------------------------------------
-  Future<void> _seedDemoData() async {
-    setState(() => _seeding = true);
-    try {
-      // Clear any previously-seeded demo data first so clicking this
-      // button more than once can't pile up duplicate agents/tactics —
-      // each click resets to a clean, known demo state instead of adding
-      // on top of whatever's already there.
-      final existingAgents = await _agentsRef.get();
-      final existingTactics = await _tacticsRef.get();
-      final existingEvents = await _eventsRef.get();
-
-      final clearBatch = FirebaseFirestore.instance.batch();
-      for (final doc in existingAgents.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      for (final doc in existingTactics.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      for (final doc in existingEvents.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      await clearBatch.commit();
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      const agentSeed = [
-        {
-          'name': 'batangas-hub',
-          'ip': '10.0.0.1',
-          'active': true,
-          'spoke_id': 'SPOKE-03',
-          'agent_id': '000',
-          'os': 'Ubuntu 22.04.3 LTS',
-          'version': 'Wazuh v4.8.0',
-        },
-        {
-          'name': 'cavite-po-agent',
-          'ip': '10.0.1.5',
-          'active': true,
-          'spoke_id': 'SPOKE-01',
-          'agent_id': '001',
-          'os': 'Windows Server 2022',
-          'version': 'Wazuh v4.8.0',
-        },
-        {
-          'name': 'laguna-po-agent',
-          'ip': '10.0.2.10',
-          'active': true,
-          'spoke_id': 'SPOKE-02',
-          'agent_id': '002',
-          'os': 'Ubuntu 20.04 LTS',
-          'version': 'Wazuh v4.7.2',
-        },
-        {
-          'name': 'rizal-po-agent',
-          'ip': '10.0.3.15',
-          'active': false,
-          'spoke_id': 'SPOKE-04',
-          'agent_id': '003',
-          'os': 'Windows 10 Pro',
-          'version': 'Wazuh v4.8.0',
-        },
-        {
-          'name': 'quezon-po-agent',
-          'ip': '10.0.4.22',
-          'active': true,
-          'spoke_id': 'SPOKE-05',
-          'agent_id': '004',
-          'os': 'CentOS Linux 8',
-          'version': 'Wazuh v4.8.0',
-        },
-      ];
-      for (final a in agentSeed) {
-        batch.set(_agentsRef.doc(), a);
-      }
-
-      const tacticSeed = [
-        {'tactic_name': 'Initial Access', 'score': 0.55, 'severity': 'High'},
-        {'tactic_name': 'Execution', 'score': 0.18, 'severity': 'Low'},
-        {'tactic_name': 'Persistence', 'score': 0.45, 'severity': 'High'},
-        {
-          'tactic_name': 'Privilege Esc.',
-          'score': 0.12,
-          'severity': 'Critical'
-        },
-        {
-          'tactic_name': 'Defense\nEvasion',
-          'score': 0.68,
-          'severity': 'Critical'
-        },
-        {
-          'tactic_name': 'Credential\nAccess',
-          'score': 0.4,
-          'severity': 'High'
-        },
-        {'tactic_name': 'Discovery', 'score': 0.6, 'severity': 'Low'},
-      ];
-      for (final t in tacticSeed) {
-        batch.set(_tacticsRef.doc(), t);
-      }
-
-      final rand = Random();
-      final descriptions = [
-        'sshd: Attempt to login using a non-existent user',
-        'Firewall dropped connection from malicious IP',
-        'Unknown problem somewhere in the system',
-        'Multiple web server 400 error codes from same IP',
-        'Integrity checksum changed for monitored file',
-        'PAM: User login failed',
-      ];
-      final agentNames = agentSeed.map((a) => a['name'] as String).toList();
-      final now = DateTime.now();
-      for (int i = 0; i < 20; i++) {
-        final ref = _eventsRef.doc();
-        final ts = now.subtract(Duration(minutes: i * 7));
-        batch.set(ref, {
-          'timestamp': Timestamp.fromDate(ts),
-          'agent': agentNames[rand.nextInt(agentNames.length)],
-          'rule_id': '${1000 + rand.nextInt(30000)}',
-          'level': rand.nextInt(17),
-          'description': descriptions[rand.nextInt(descriptions.length)],
-        });
-      }
-
-      await batch.commit();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Seeded demo agents, tactics, and events.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Seeding failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _seeding = false);
-    }
   }
 }
 

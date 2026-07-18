@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/cve_finding_model.dart';
+import '../../services/cve_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -13,8 +13,7 @@ class VulnerabilitiesContent extends StatefulWidget {
 }
 
 class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
-  final _cvesRef = FirebaseFirestore.instance.collection('cve_findings');
-  bool _seeding = false;
+  final _repository = CveRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -23,11 +22,10 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _cvesRef.snapshots(),
+          StreamBuilder<List<CveFinding>>(
+            stream: _repository.watchCves(),
             builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? const [];
-              final cves = docs.map(CveFinding.fromFirestore).toList();
+              final cves = snapshot.data ?? const [];
               final criticalCount =
                   cves.where((c) => c.severity == 'CRITICAL').length;
               final highCount =
@@ -43,21 +41,11 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                   children: [
                     _statPill('$criticalCount', 'CRITICAL', AppColors.red),
                     _statPill('$highCount', 'HIGH', AppColors.orange),
-                    OutlinedButton.icon(
-                      onPressed: _seeding ? null : _seedDemoData,
-                      icon: _seeding
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.dataset_outlined, size: 16),
-                      label: Text(_seeding ? 'Seeding...' : 'Seed Demo Data'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        side: const BorderSide(color: AppColors.cardBorder),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: () => setState(() {}),
+                      tooltip: 'Refresh',
+                      color: AppColors.textSecondary,
                     ),
                   ],
                 ),
@@ -65,8 +53,8 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
             },
           ),
           const SizedBox(height: 20),
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _cvesRef.snapshots(),
+          StreamBuilder<List<CveFinding>>(
+            stream: _repository.watchCves(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(
@@ -85,8 +73,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                   ),
                 );
               }
-              final cves =
-                  snapshot.data!.docs.map(CveFinding.fromFirestore).toList();
+              final cves = snapshot.data!;
 
               if (cves.isEmpty) {
                 return const DashCard(
@@ -94,7 +81,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                     padding: EdgeInsets.all(32),
                     child: Center(
                       child: Text(
-                        'No CVE findings yet. Use "Seed Demo Data".',
+                        'No CVE findings yet.',
                         style: TextStyle(
                             color: AppColors.textSecondary, fontSize: 13),
                         textAlign: TextAlign.center,
@@ -197,71 +184,6 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
         ],
       ),
     );
-  }
-
-  /// TEMPORARY: seeds 4 demo CVE findings via WriteBatch. Real findings
-  /// would eventually come from the heuristic engine cross-referencing
-  /// agent OS/package metadata against a CVE feed — remove or gate behind
-  /// a debug flag before any production-style deployment.
-  Future<void> _seedDemoData() async {
-    setState(() => _seeding = true);
-    try {
-      // Clear existing demo CVEs first so repeated clicks don't duplicate.
-      final existing = await _cvesRef.get();
-      final clearBatch = FirebaseFirestore.instance.batch();
-      for (final doc in existing.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      await clearBatch.commit();
-
-      final batch = FirebaseFirestore.instance.batch();
-      const seed = [
-        {
-          'cve_id': 'CVE-2023-38408',
-          'severity': 'CRITICAL',
-          'cvss_score': '9.8',
-          'affected_package': 'openssh-server (9.3p1)',
-          'agent_name': 'rizal-po-agent',
-        },
-        {
-          'cve_id': 'CVE-2023-4863',
-          'severity': 'CRITICAL',
-          'cvss_score': '9.0',
-          'affected_package': 'libwebp (1.0.3)',
-          'agent_name': 'batangas-hub',
-        },
-        {
-          'cve_id': 'CVE-2022-22965',
-          'severity': 'HIGH',
-          'cvss_score': '8.8',
-          'affected_package': 'spring-framework (5.3.16)',
-          'agent_name': 'cavite-po-agent',
-        },
-        {
-          'cve_id': 'CVE-2021-3156',
-          'severity': 'HIGH',
-          'cvss_score': '7.5',
-          'affected_package': 'sudo (1.8.31)',
-          'agent_name': 'laguna-po-agent',
-        },
-      ];
-      for (final c in seed) {
-        batch.set(_cvesRef.doc(), c);
-      }
-      await batch.commit();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seeded 4 demo CVE findings.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Seeding failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _seeding = false);
-    }
   }
 }
 

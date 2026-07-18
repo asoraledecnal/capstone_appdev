@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
+import '../../models/file_integrity_event_model.dart';
+import '../../services/file_integrity_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
 class FileIntegrityContent extends StatelessWidget {
   const FileIntegrityContent({super.key});
 
-  static const _events = [
-    [
-      '11:22:04',
-      'rizal-po-agent',
-      r'C:\Windows\System32\drivers\etc\hosts',
-      'MODIFIED'
-    ],
-    ['11:15:30', 'cavite-po-agent', '/etc/passwd', 'MODIFIED'],
-    ['10:50:12', 'laguna-po-agent', '/var/www/html/backdoor.php', 'ADDED'],
-    ['09:40:00', 'batangas-hub', '/etc/nginx/nginx.conf', 'MODIFIED'],
-  ];
+  String _formatTime(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final repository = FileIntegrityRepository();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -41,11 +38,42 @@ class FileIntegrityContent extends StatelessWidget {
               // record (timestamp, agent, full untruncated path, action).
               final narrow = constraints.maxWidth < 640;
               return DashCard(
-                child: narrow
-                    ? _eventCardList(context)
-                    : HScrollBox(
-                        minWidth: 640,
-                        child: SimpleTable(
+                child: StreamBuilder<List<FileIntegrityEvent>>(
+                  stream: repository.watchEvents(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text('Failed to load events: ${snapshot.error}',
+                            style: const TextStyle(color: AppColors.red)),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final events = snapshot.data!;
+                    if (events.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(
+                            'No file integrity events yet.',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 13),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return narrow
+                        ? _eventCardList(context, events)
+                        : HScrollBox(
+                            minWidth: 640,
+                            child: SimpleTable(
                           headers: const [
                             'TIMESTAMP',
                             'AGENT',
@@ -55,16 +83,16 @@ class FileIntegrityContent extends StatelessWidget {
                           ],
                           flex: const [2, 2, 4, 2, 1],
                           rows: [
-                            for (final e in _events)
+                            for (final e in events)
                               [
-                                CellText(e[0], color: AppColors.textSecondary),
-                                CellText(e[1], weight: FontWeight.w600),
-                                CellText(e[2], color: AppColors.textSecondary),
+                                CellText(_formatTime(e.timestamp), color: AppColors.textSecondary),
+                                CellText(e.agentName, weight: FontWeight.w600),
+                                CellText(e.filePath, color: AppColors.textSecondary),
                                 Align(
                                   alignment: Alignment.centerLeft,
                                   child: StatusBadge(
-                                    label: e[3],
-                                    color: e[3] == 'ADDED'
+                                    label: e.action,
+                                    color: e.action == 'ADDED'
                                         ? AppColors.red
                                         : AppColors.orange,
                                   ),
@@ -73,7 +101,9 @@ class FileIntegrityContent extends StatelessWidget {
                               ],
                           ],
                         ),
-                      ),
+                      );
+                  },
+                ),
               );
             },
           ),
@@ -85,12 +115,12 @@ class FileIntegrityContent extends StatelessWidget {
   /// Mobile-width replacement for the table: one tappable card per file
   /// event carrying all the same fields, laid out top-to-bottom so the
   /// timestamp and agent never get squeezed off-screen.
-  Widget _eventCardList(BuildContext context) {
+  Widget _eventCardList(BuildContext context, List<FileIntegrityEvent> events) {
     return Column(
       children: [
-        for (int i = 0; i < _events.length; i++) ...[
-          _FileEventCard(event: _events[i]),
-          if (i != _events.length - 1) const SizedBox(height: 10),
+        for (int i = 0; i < events.length; i++) ...[
+          _FileEventCard(event: events[i]),
+          if (i != events.length - 1) const SizedBox(height: 10),
         ],
       ],
     );
@@ -98,14 +128,20 @@ class FileIntegrityContent extends StatelessWidget {
 }
 
 class _FileEventCard extends StatelessWidget {
-  final List<String> event;
+  final FileIntegrityEvent event;
 
   const _FileEventCard({required this.event});
 
   @override
   Widget build(BuildContext context) {
-    final action = event[3];
+    final action = event.action;
     final actionColor = action == 'ADDED' ? AppColors.red : AppColors.orange;
+    
+    String formatTime(DateTime dt) {
+      String two(int n) => n.toString().padLeft(2, '0');
+      return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+    }
+
     return Material(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(10),
@@ -126,7 +162,7 @@ class _FileEventCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      event[2],
+                      event.filePath,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 2,
                       style: const TextStyle(
@@ -145,8 +181,8 @@ class _FileEventCard extends StatelessWidget {
                 spacing: 14,
                 runSpacing: 6,
                 children: [
-                  _metaChip(Icons.dns_outlined, event[1], AppColors.teal),
-                  _metaChip(Icons.access_time, event[0], AppColors.textMuted),
+                  _metaChip(Icons.dns_outlined, event.agentName, AppColors.teal),
+                  _metaChip(Icons.access_time, formatTime(event.timestamp), AppColors.textMuted),
                 ],
               ),
               const SizedBox(height: 6),
@@ -184,7 +220,7 @@ class _FileEventCard extends StatelessWidget {
 /// icon. Now opens the same detail sheet the mobile cards use, so it
 /// actually does something on desktop/tablet too.
 class _DetailButton extends StatelessWidget {
-  final List<String> event;
+  final FileIntegrityEvent event;
 
   const _DetailButton({required this.event});
 
@@ -206,9 +242,15 @@ class _DetailButton extends StatelessWidget {
 
 /// Shared detail sheet used by both the mobile card ("Tap for full
 /// details") and the desktop table's DETAILS icon.
-void showFileEventDetail(BuildContext context, List<String> event) {
-  final action = event[3];
+void showFileEventDetail(BuildContext context, FileIntegrityEvent event) {
+  final action = event.action;
   final actionColor = action == 'ADDED' ? AppColors.red : AppColors.orange;
+  
+  String formatTime(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
+
   showModalBottomSheet(
     context: context,
     backgroundColor: AppColors.card,
@@ -235,11 +277,11 @@ void showFileEventDetail(BuildContext context, List<String> event) {
             ),
             StatusBadge(label: action, color: actionColor),
             const SizedBox(height: 16),
-            _detailRow('FILE PATH', event[2], big: true),
+            _detailRow('FILE PATH', event.filePath, big: true),
             const SizedBox(height: 18),
-            _detailRow('AGENT', event[1]),
+            _detailRow('AGENT', event.agentName),
             const SizedBox(height: 18),
-            _detailRow('TIMESTAMP', event[0]),
+            _detailRow('TIMESTAMP', formatTime(event.timestamp)),
             const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,

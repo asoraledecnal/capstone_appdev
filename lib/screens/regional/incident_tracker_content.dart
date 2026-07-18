@@ -1,9 +1,9 @@
 import 'dart:math';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/incident_model.dart';
+import '../../services/incident_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -13,15 +13,6 @@ const _spokeIds = ['SPOKE-01', 'SPOKE-02', 'SPOKE-03', 'SPOKE-04', 'SPOKE-05'];
 
 const _previewLimit = 5;
 
-const _heuristicRules = [
-  'SSH Brute Force Threshold Exceeded (5 attempts/60s)',
-  'Sequential SYN Port Scan Signature',
-  'IPsec Tunnel Flap Threshold Breached',
-  'DDoS Heuristic - Traffic Volume Spike',
-  'Gateway Latency Deviation from Rolling Baseline',
-  'Multiple Failed Auth Attempts - Same Source',
-];
-
 class IncidentTrackerContent extends StatefulWidget {
   const IncidentTrackerContent({super.key});
 
@@ -30,8 +21,7 @@ class IncidentTrackerContent extends StatefulWidget {
 }
 
 class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
-  final _incidents = FirebaseFirestore.instance.collection('incidents');
-  bool _seeding = false;
+  final _repository = IncidentRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -48,20 +38,11 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                OutlinedButton.icon(
-                  onPressed: _seeding ? null : _seedDummyData,
-                  icon: _seeding
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.dataset_outlined, size: 16),
-                  label: Text(_seeding ? 'Seeding...' : 'Seed 50 Records'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.cardBorder),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: () => setState(() {}),
+                  tooltip: 'Refresh',
+                  color: AppColors.textSecondary,
                 ),
                 ElevatedButton.icon(
                   onPressed: () => _showIncidentForm(context),
@@ -77,11 +58,8 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           ),
           const SizedBox(height: 20),
           DashCard(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _incidents
-                  .orderBy('timestamp', descending: true)
-                  .limit(200)
-                  .snapshots(),
+            child: StreamBuilder<List<IncidentLog>>(
+              stream: _repository.watchIncidents(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Padding(
@@ -98,21 +76,21 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                final docs = snapshot.data!.docs;
-                if (docs.isEmpty) {
+                final logs = snapshot.data!;
+                if (logs.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.all(32),
                     child: Center(
                       child: Text(
-                        'No incident logs yet. Use "Seed 50 Records" for demo data, '
-                        'or "New Incident" to add one manually.',
+                        'No incident logs yet. '
+                        'Use "New Incident" to add one manually.',
                         style: TextStyle(color: AppColors.textSecondary),
                         textAlign: TextAlign.center,
                       ),
                     ),
                   );
                 }
-                final logs = docs.map(IncidentLog.fromFirestore).toList();
+
                 final previewLogs = logs.take(_previewLimit).toList();
                 final hasMore = logs.length > _previewLimit;
 
@@ -393,7 +371,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
       ),
     );
     if (confirmed == true) {
-      await _incidents.doc(log.id).delete();
+      await _repository.deleteIncident(log.id);
     }
   }
 
@@ -583,9 +561,18 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
         onSubmit: (log) async {
           if (existing == null) {
             final id = _generateIncidentId();
-            await _incidents.doc(id).set(log.toFirestore());
+            final logWithId = IncidentLog(
+              id: id,
+              spokeId: log.spokeId,
+              timestamp: log.timestamp,
+              alertType: log.alertType,
+              severity: log.severity,
+              heuristicRule: log.heuristicRule,
+              ticketStatus: log.ticketStatus,
+            );
+            await _repository.createIncident(logWithId.toFirestore());
           } else {
-            await _incidents.doc(existing.id).update(log.toFirestore());
+            await _repository.updateIncident(existing.id, log.toFirestore());
           }
         },
       ),
@@ -600,57 +587,6 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
     final datePart = '${now.year}${two(now.month)}${two(now.day)}';
     final suffix = (Random().nextInt(900) + 100); // 100-999
     return 'INC-$datePart-$suffix';
-  }
-
-  /// TEMPORARY: injects 50 dummy heuristic incident records via a single
-  /// WriteBatch. Intended for populating demo data during development /
-  /// grading walkthroughs — remove or gate behind a debug flag before any
-  /// production-style deployment.
-  Future<void> _seedDummyData() async {
-    setState(() => _seeding = true);
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      final rand = Random();
-      final now = DateTime.now();
-
-      for (int i = 0; i < 50; i++) {
-        final ts = now.subtract(Duration(minutes: rand.nextInt(60 * 24 * 7)));
-        String two(int n) => n.toString().padLeft(2, '0');
-        final datePart = '${ts.year}${two(ts.month)}${two(ts.day)}';
-        final id = 'INC-$datePart-${(i + 1).toString().padLeft(3, '0')}';
-
-        final log = IncidentLog(
-          id: id,
-          spokeId: _spokeIds[rand.nextInt(_spokeIds.length)],
-          timestamp: ts,
-          alertType: IncidentLog
-              .alertTypes[rand.nextInt(IncidentLog.alertTypes.length)],
-          severity: IncidentLog
-              .severities[rand.nextInt(IncidentLog.severities.length)],
-          heuristicRule: _heuristicRules[rand.nextInt(_heuristicRules.length)],
-          ticketStatus: IncidentLog
-              .ticketStatuses[rand.nextInt(IncidentLog.ticketStatuses.length)],
-        );
-
-        batch.set(_incidents.doc(id), log.toFirestore());
-      }
-
-      await batch.commit();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seeded 50 dummy incident records.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Seeding failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _seeding = false);
-    }
   }
 }
 

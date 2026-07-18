@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/ioc_finding_model.dart';
+import '../../services/threat_intel_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -14,8 +14,7 @@ class ThreatIntelligenceContent extends StatefulWidget {
 
 class _ThreatIntelligenceContentState
     extends State<ThreatIntelligenceContent> {
-  final _iocsRef = FirebaseFirestore.instance.collection('ioc_findings');
-  bool _seeding = false;
+  final _repository = ThreatIntelRepository();
 
   IconData _typeIcon(String type) {
     switch (type) {
@@ -44,25 +43,16 @@ class _ThreatIntelligenceContentState
             title: 'Threat Intelligence',
             subtitle:
                 'Identified Indicators of Compromise (IoCs) matched against live traffic.',
-            trailing: OutlinedButton.icon(
-              onPressed: _seeding ? null : _seedDemoData,
-              icon: _seeding
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.dataset_outlined, size: 16),
-              label: Text(_seeding ? 'Seeding...' : 'Seed Demo Data'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                side: const BorderSide(color: AppColors.cardBorder),
-              ),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh, size: 20),
+              onPressed: () => setState(() {}),
+              tooltip: 'Refresh',
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 20),
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _iocsRef.orderBy('last_seen', descending: true).snapshots(),
+          StreamBuilder<List<IocFinding>>(
+            stream: _repository.watchIocs(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(
@@ -81,8 +71,7 @@ class _ThreatIntelligenceContentState
                   ),
                 );
               }
-              final iocs =
-                  snapshot.data!.docs.map(IocFinding.fromFirestore).toList();
+              final iocs = snapshot.data!;
 
               return LayoutBuilder(
                 builder: (context, constraints) {
@@ -115,7 +104,7 @@ class _ThreatIntelligenceContentState
                             padding: EdgeInsets.symmetric(vertical: 24),
                             child: Center(
                               child: Text(
-                                'No IoC matches yet. Use "Seed Demo Data".',
+                                'No IoC matches yet.',
                                 style: TextStyle(
                                     color: AppColors.textSecondary,
                                     fontSize: 13),
@@ -243,64 +232,5 @@ class _ThreatIntelligenceContentState
         Text(label, style: TextStyle(color: color, fontSize: 11.5)),
       ],
     );
-  }
-
-  /// TEMPORARY: seeds 3 demo IoC matches via WriteBatch. Real matches
-  /// would come from the heuristic engine cross-referencing Wazuh alert
-  /// metadata against a threat feed — remove or gate behind a debug flag
-  /// before any production-style deployment.
-  Future<void> _seedDemoData() async {
-    setState(() => _seeding = true);
-    try {
-      // Clear existing demo IoCs first so repeated clicks don't duplicate.
-      final existing = await _iocsRef.get();
-      final clearBatch = FirebaseFirestore.instance.batch();
-      for (final doc in existing.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      await clearBatch.commit();
-
-      final batch = FirebaseFirestore.instance.batch();
-      final now = DateTime.now();
-      final seed = [
-        {
-          'indicator': '185.220.101.44',
-          'type': 'IP Address',
-          'threat_actor': 'Mirai Botnet',
-          'agent_name': 'rizal-po-agent',
-          'last_seen': Timestamp.fromDate(now.subtract(const Duration(minutes: 5))),
-        },
-        {
-          'indicator': '4b494...8c7f9',
-          'type': 'File Hash (SHA256)',
-          'threat_actor': 'Ransomware.WannaCry',
-          'agent_name': 'cavite-po-agent',
-          'last_seen': Timestamp.fromDate(now.subtract(const Duration(hours: 2))),
-        },
-        {
-          'indicator': 'malicious-domain.xyz',
-          'type': 'DNS Query',
-          'threat_actor': 'Phishing',
-          'agent_name': 'laguna-po-agent',
-          'last_seen': Timestamp.fromDate(now.subtract(const Duration(hours: 3))),
-        },
-      ];
-      for (final i in seed) {
-        batch.set(_iocsRef.doc(), i);
-      }
-      await batch.commit();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seeded 3 demo IoC matches.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Seeding failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _seeding = false);
-    }
   }
 }

@@ -55,10 +55,6 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  // Shortened from "DICT-4A WAZUH" to "DICT SIEM" — on some phones the
-  // longer title overlapped the Regional/Provincial pill next to it. The
-  // subtitle is still hidden in the compact row (showSubtitle: false) to
-  // keep that space tight as well.
   Widget _brand({bool showSubtitle = true}) {
     return Row(
       mainAxisSize: MainAxisSize.min,

@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/wazuh_agent_model.dart';
+import '../../services/wazuh_agent_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -13,7 +13,7 @@ class EndpointSecurityContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final agentsRef = FirebaseFirestore.instance.collection('wazuh_agents');
+    final repository = WazuhAgentRepository();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -26,8 +26,8 @@ class EndpointSecurityContent extends StatelessWidget {
                 'Manage and monitor all registered agents across Region 4A.',
           ),
           const SizedBox(height: 20),
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: agentsRef.orderBy('name').snapshots(),
+          StreamBuilder<List<WazuhAgent>>(
+            stream: repository.watchAgents(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(
@@ -48,8 +48,7 @@ class EndpointSecurityContent extends StatelessWidget {
                   ),
                 );
               }
-              final agents =
-                  snapshot.data!.docs.map(WazuhAgent.fromFirestore).toList();
+              final agents = snapshot.data!;
 
               if (agents.isEmpty) {
                 return const DashCard(
