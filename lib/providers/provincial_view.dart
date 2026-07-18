@@ -369,13 +369,13 @@ class _ProvincialViewState extends State<ProvincialView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
+                    const Wrap(
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 12,
                       runSpacing: 6,
                       children: [
-                        const _TitleWithIcon(),
-                        const _RefreshLabel(),
+                        _TitleWithIcon(),
+                        _RefreshLabel(),
                       ],
                     ),
                     const SizedBox(height: 8),

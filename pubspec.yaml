@@ -1,5 +1,5 @@
 name: capstone_appdev
-description: DICT-4A Wazuh SIEM/EDR Hub-and-Spoke dashboard prototype (UI clone).
+description: DICT-4A Wazuh SIEM Hub-and-Spoke dashboard.
 publish_to: 'none'
 version: 1.0.0+1
 
