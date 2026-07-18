@@ -1,7 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/wazuh_agent_model.dart';
 import '../../models/wazuh_event_model.dart';
+import '../../services/wazuh_agent_repository.dart';
+import '../../services/wazuh_event_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
@@ -24,9 +25,11 @@ class ProvincialView extends StatefulWidget {
 }
 
 class _ProvincialViewState extends State<ProvincialView> {
+  final _agentRepository = WazuhAgentRepository();
+  final _eventRepository = WazuhEventRepository();
+  
   final List<String> _tenants = _tenantSpokeIds.keys.toList();
   late String _selectedTenant = _tenants.first;
-  bool _seeding = false;
 
   String get _selectedSpokeId => _tenantSpokeIds[_selectedTenant]!;
 
@@ -54,9 +57,6 @@ class _ProvincialViewState extends State<ProvincialView> {
 
   @override
   Widget build(BuildContext context) {
-    final agentsRef = FirebaseFirestore.instance.collection('wazuh_agents');
-    final eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -131,20 +131,11 @@ class _ProvincialViewState extends State<ProvincialView> {
                 ),
               );
 
-              final seedButton = OutlinedButton.icon(
-                onPressed: _seeding ? null : _seedDemoData,
-                icon: _seeding
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.dataset_outlined, size: 16),
-                label: Text(_seeding ? 'Seeding...' : 'Seed Demo Data'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
-                  side: const BorderSide(color: AppColors.cardBorder),
-                ),
+              final seedButton = IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                onPressed: () => setState(() {}),
+                tooltip: 'Refresh',
+                color: AppColors.textSecondary,
               );
 
               // Stack vertically below ~500px so the seed button never gets
@@ -256,22 +247,14 @@ class _ProvincialViewState extends State<ProvincialView> {
 
           // Stat cards — computed live from Firestore, filtered to the
           // selected tenant's spoke_id.
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: agentsRef
-                .where('spoke_id', isEqualTo: _selectedSpokeId)
-                .snapshots(),
+          StreamBuilder<List<WazuhAgent>>(
+            stream: _agentRepository.watchAgents(spokeId: _selectedSpokeId),
             builder: (context, agentSnap) {
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: eventsRef
-                    .where('spoke_id', isEqualTo: _selectedSpokeId)
-                    .snapshots(),
+              return StreamBuilder<List<WazuhEvent>>(
+                stream: _eventRepository.watchEvents(spokeId: _selectedSpokeId, limit: 1000), // Get enough events to count stats
                 builder: (context, eventSnap) {
-                  final agents = (agentSnap.data?.docs ?? const [])
-                      .map(WazuhAgent.fromFirestore)
-                      .toList();
-                  final events = (eventSnap.data?.docs ?? const [])
-                      .map(WazuhEvent.fromFirestore)
-                      .toList();
+                  final agents = agentSnap.data ?? const [];
+                  final events = eventSnap.data ?? const [];
 
                   final totalEndpoints = agents.length;
                   final activeEndpoints =
@@ -331,12 +314,8 @@ class _ProvincialViewState extends State<ProvincialView> {
           const SizedBox(height: 20),
 
           // Event table — filtered to the selected tenant's spoke_id, live.
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: eventsRef
-                .where('spoke_id', isEqualTo: _selectedSpokeId)
-                .orderBy('timestamp', descending: true)
-                .limit(20)
-                .snapshots(),
+          StreamBuilder<List<WazuhEvent>>(
+            stream: _eventRepository.watchEvents(limit: 20, spokeId: _selectedSpokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 // A composite index is required for where + orderBy on
@@ -348,7 +327,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                     child: Text(
                       'Failed to load events: ${snapshot.error}\n\n'
                       'If this mentions a missing index, open the link in '
-                      'the error to create it in Firebase Console.',
+                      'the console to build it.',
                       style: const TextStyle(color: AppColors.red),
                     ),
                   ),
@@ -357,13 +336,13 @@ class _ProvincialViewState extends State<ProvincialView> {
               if (!snapshot.hasData) {
                 return const DashCard(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: EdgeInsets.all(32),
                     child: Center(child: CircularProgressIndicator()),
                   ),
                 );
               }
-              final events =
-                  snapshot.data!.docs.map(WazuhEvent.fromFirestore).toList();
+
+              final events = snapshot.data!;
 
               return DashCard(
                 child: Column(
@@ -380,15 +359,11 @@ class _ProvincialViewState extends State<ProvincialView> {
                     ),
                     const SizedBox(height: 8),
                     if (events.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: Text(
-                            'No events yet for $_selectedTenant. Use '
-                            '"Seed Demo Data".',
-                            style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: 13),
-                          ),
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'No events found for this tenant yet.',
+                          style: TextStyle(color: AppColors.textSecondary),
                         ),
                       )
                     else
@@ -518,161 +493,9 @@ class _ProvincialViewState extends State<ProvincialView> {
       ),
     );
   }
-
-  /// TEMPORARY: seeds ~7 endpoint agents and 5 events per province across
-  /// all 4 tenants in one go (so switching the dropdown always has data to
-  /// show, without needing to reseed per tenant). Clears old provincial
-  /// demo data first so repeated clicks don't duplicate. Remove or gate
-  /// behind a debug flag before any production-style deployment.
-  Future<void> _seedDemoData() async {
-    setState(() => _seeding = true);
-    try {
-      final agentsRef = FirebaseFirestore.instance.collection('wazuh_agents');
-      final eventsRef = FirebaseFirestore.instance.collection('wazuh_events');
-
-      // Clear only previously-seeded *provincial* agents/events (those
-      // with a spoke_id matching one of our 4 tenants) so this doesn't
-      // touch the office-level agents seeded from the Overview screen.
-      final tenantSpokeIds = _tenantSpokeIds.values.toList();
-      final existingAgents = await agentsRef
-          .where('spoke_id', whereIn: tenantSpokeIds)
-          .where('agent_id', isEqualTo: '') // only our workstation-style seed docs
-          .get();
-      final existingEvents =
-          await eventsRef.where('spoke_id', whereIn: tenantSpokeIds).get();
-
-      final clearBatch = FirebaseFirestore.instance.batch();
-      for (final doc in existingAgents.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      for (final doc in existingEvents.docs) {
-        clearBatch.delete(doc.reference);
-      }
-      await clearBatch.commit();
-
-      final batch = FirebaseFirestore.instance.batch();
-      final rand = _SeededRandom();
-      final now = DateTime.now();
-
-      const eventTemplates = [
-        {
-          'type': 'Login Attempt',
-          'severity': 'High',
-          'description':
-              'Multiple failed SSH login attempts (15 attempts in 2 minutes)',
-          'action': 'Block IP',
-        },
-        {
-          'type': 'File Transfer',
-          'severity': 'Medium',
-          'description':
-              'Large file transfer to external IP (2.4GB to unknown destination)',
-          'action': 'Review Transfer',
-        },
-        {
-          'type': 'Suspicious Traffic',
-          'severity': 'Low',
-          'description': 'Unusual outbound traffic pattern detected on port 8080',
-          'action': 'Investigate',
-        },
-        {
-          'type': 'Unauthorized Access',
-          'severity': 'Medium',
-          'description': 'Attempted access to restricted directory /admin/config',
-          'action': 'Review Permissions',
-        },
-        {
-          'type': 'File Download',
-          'severity': 'Low',
-          'description': 'Executable file downloaded from external source',
-          'action': 'Scan File',
-        },
-      ];
-
-      for (final entry in _tenantSpokeIds.entries) {
-        final tenantName = entry.key;
-        final spokeId = entry.value;
-        final prefix = tenantName.split(' ').first.toUpperCase();
-
-        // 7 endpoints per province, mostly active — total 28 across all 4
-        // tenants, matching the original mockup's "24 active / 28 total".
-        for (int i = 0; i < 7; i++) {
-          final isServer = i % 3 == 0;
-          final hostname =
-              '$prefix-${isServer ? 'SRV' : 'WS'}-${(i + 1).toString().padLeft(2, '0')}';
-          batch.set(agentsRef.doc(), {
-            'name': hostname,
-            'ip': '10.45.${i + 1}.${10 + i}',
-            'active': rand.nextDouble() > 0.15,
-            'spoke_id': spokeId,
-            'agent_id': '',
-            'os': '',
-            'version': '',
-          });
-        }
-
-        // 5 events per province, spread over the last couple hours.
-        final endpoints = [
-          '$prefix-WS-012',
-          '$prefix-SRV-03',
-          '$prefix-WS-007',
-          '$prefix-WS-019',
-          '$prefix-SRV-01',
-        ];
-        for (int i = 0; i < eventTemplates.length; i++) {
-          final t = eventTemplates[i];
-          batch.set(eventsRef.doc(), {
-            'timestamp': Timestamp.fromDate(
-                now.subtract(Duration(minutes: 4 + i * 13))),
-            'agent': '${prefix.toLowerCase()}-po-agent',
-            'rule_id': '${5000 + rand.nextInt(5000)}',
-            'level': 0,
-            'description': t['description'],
-            'spoke_id': spokeId,
-            'endpoint': endpoints[i],
-            'severity': t['severity'],
-            'source_ip': '192.168.${10 + i}.${40 + i}',
-            'action': t['action'],
-          });
-        }
-      }
-
-      await batch.commit();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Seeded demo endpoints and events for all provinces.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Seeding failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _seeding = false);
-    }
-  }
 }
 
-/// Minimal deterministic-free pseudo-random helper so the seeder doesn't
-/// need to import dart:math separately at the top for a couple of calls.
-class _SeededRandom {
-  int _seed = DateTime.now().microsecondsSinceEpoch;
 
-  double nextDouble() {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return (_seed % 10000) / 10000.0;
-  }
-
-  int nextInt(int max) {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed % max;
-  }
-}
 
 class _TitleWithIcon extends StatelessWidget {
   const _TitleWithIcon();

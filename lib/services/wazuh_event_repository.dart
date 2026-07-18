@@ -10,8 +10,12 @@ class WazuhEventRepository {
   CollectionReference<Map<String, dynamic>> get _eventsRef =>
       _firestore.collection('wazuh_events');
 
-  Stream<List<WazuhEvent>> watchEvents({int limit = 100}) {
-    return _eventsRef
+  Stream<List<WazuhEvent>> watchEvents({int limit = 100, String? spokeId}) {
+    Query<Map<String, dynamic>> query = _eventsRef;
+    if (spokeId != null) {
+      query = query.where('spoke_id', isEqualTo: spokeId);
+    }
+    return query
         .orderBy('timestamp', descending: true)
         .limit(limit)
         .snapshots()
