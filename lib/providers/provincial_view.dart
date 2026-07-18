@@ -274,8 +274,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                       .toList();
 
                   final totalEndpoints = agents.length;
-                  final activeEndpoints =
-                      agents.where((a) => a.active).length;
+                  final activeEndpoints = agents.where((a) => a.active).length;
                   final criticalAlerts =
                       events.where((e) => e.severity == 'High').length;
                   final highPriority =
@@ -369,13 +368,13 @@ class _ProvincialViewState extends State<ProvincialView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
+                    const Wrap(
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 12,
                       runSpacing: 6,
                       children: [
-                        const _TitleWithIcon(),
-                        const _RefreshLabel(),
+                        _TitleWithIcon(),
+                        _RefreshLabel(),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -438,15 +437,14 @@ class _ProvincialViewState extends State<ProvincialView> {
                                 ),
                                 StatusBadge(
                                     label: e.severity,
-                                    color: AppColors.severityColor(
-                                        e.severity)),
+                                    color: AppColors.severityColor(e.severity)),
                                 CellText(e.description,
                                     color: AppColors.textSecondary),
                                 CellText(e.sourceIp, color: AppColors.teal),
                                 OutlinedButton(
                                   style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                        color: AppColors.teal),
+                                    side:
+                                        const BorderSide(color: AppColors.teal),
                                     foregroundColor: AppColors.teal,
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 6),
@@ -455,8 +453,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                                         MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   onPressed: () {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
                                           '${e.action} — noted for '
@@ -536,7 +533,8 @@ class _ProvincialViewState extends State<ProvincialView> {
       final tenantSpokeIds = _tenantSpokeIds.values.toList();
       final existingAgents = await agentsRef
           .where('spoke_id', whereIn: tenantSpokeIds)
-          .where('agent_id', isEqualTo: '') // only our workstation-style seed docs
+          .where('agent_id',
+              isEqualTo: '') // only our workstation-style seed docs
           .get();
       final existingEvents =
           await eventsRef.where('spoke_id', whereIn: tenantSpokeIds).get();
@@ -572,13 +570,15 @@ class _ProvincialViewState extends State<ProvincialView> {
         {
           'type': 'Suspicious Traffic',
           'severity': 'Low',
-          'description': 'Unusual outbound traffic pattern detected on port 8080',
+          'description':
+              'Unusual outbound traffic pattern detected on port 8080',
           'action': 'Investigate',
         },
         {
           'type': 'Unauthorized Access',
           'severity': 'Medium',
-          'description': 'Attempted access to restricted directory /admin/config',
+          'description':
+              'Attempted access to restricted directory /admin/config',
           'action': 'Review Permissions',
         },
         {
@@ -622,8 +622,8 @@ class _ProvincialViewState extends State<ProvincialView> {
         for (int i = 0; i < eventTemplates.length; i++) {
           final t = eventTemplates[i];
           batch.set(eventsRef.doc(), {
-            'timestamp': Timestamp.fromDate(
-                now.subtract(Duration(minutes: 4 + i * 13))),
+            'timestamp':
+                Timestamp.fromDate(now.subtract(Duration(minutes: 4 + i * 13))),
             'agent': '${prefix.toLowerCase()}-po-agent',
             'rule_id': '${5000 + rand.nextInt(5000)}',
             'level': 0,
