@@ -148,6 +148,7 @@ class SimpleTable extends StatelessWidget {
   /// like a status badge, count, or action button so they sit centered in
   /// their column instead of hugging the left edge.
   final List<Alignment>? align;
+  final List<VoidCallback>? onRowTap;
 
   const SimpleTable({
     super.key,
@@ -155,6 +156,7 @@ class SimpleTable extends StatelessWidget {
     required this.rows,
     this.flex,
     this.align,
+    this.onRowTap,
   });
 
   @override
@@ -189,18 +191,21 @@ class SimpleTable extends StatelessWidget {
           ),
         ),
         const Divider(height: 1, color: AppColors.cardBorder),
-        for (final row in rows) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                for (int i = 0; i < row.length; i++)
-                  Expanded(
-                    flex: flexValues[i],
-                    child: Align(alignment: alignValues[i], child: row[i]),
-                  ),
-              ],
+        for (int r = 0; r < rows.length; r++) ...[
+          InkWell(
+            onTap: onRowTap != null && onRowTap!.length > r ? onRowTap![r] : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (int i = 0; i < rows[r].length; i++)
+                    Expanded(
+                      flex: flexValues[i],
+                      child: Align(alignment: alignValues[i], child: rows[r][i]),
+                    ),
+                ],
+              ),
             ),
           ),
           const Divider(height: 1, color: AppColors.cardBorder),
