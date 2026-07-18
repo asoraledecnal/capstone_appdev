@@ -631,8 +631,23 @@ class _IncidentFormDialogState extends State<_IncidentFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
+    // Reactive to the keyboard: MediaQuery rebuilds this widget whenever
+    // viewInsets.bottom changes (keyboard opening/closing), so this
+    // recalculates the moment the keyboard shows instead of using a fixed
+    // percentage of the FULL screen height.
+    final mq = MediaQuery.of(context);
+    final keyboardHeight = mq.viewInsets.bottom;
+    final availableHeight =
+        mq.size.height - keyboardHeight - mq.padding.top - mq.padding.bottom;
+    // Reserve room for the dialog's title, action buttons, dialog padding,
+    // and its own inset margins — roughly 180px — then give the rest to
+    // the scrollable field list, with a sane floor/ceiling.
+    final maxDialogContentHeight =
+        (availableHeight - 180).clamp(120.0, double.infinity);
+
     return AlertDialog(
       backgroundColor: AppColors.card,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       title: Text(
         isEdit ? 'Edit Incident — ${widget.existing!.id}' : 'New Incident',
         style: const TextStyle(color: AppColors.textPrimary),
@@ -641,41 +656,46 @@ class _IncidentFormDialogState extends State<_IncidentFormDialog> {
         key: _formKey,
         child: SizedBox(
           width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _dropdown('Spoke', _spokeId, _spokeIds,
-                  (v) => setState(() => _spokeId = v!)),
-              const SizedBox(height: 14),
-              _dropdown('Alert Type', _alertType, IncidentLog.alertTypes,
-                  (v) => setState(() => _alertType = v!)),
-              const SizedBox(height: 14),
-              _dropdown('Severity', _severity, IncidentLog.severities,
-                  (v) => setState(() => _severity = v!)),
-              const SizedBox(height: 14),
-              _dropdown(
-                  'Ticket Status',
-                  _ticketStatus,
-                  IncidentLog.ticketStatuses,
-                  (v) => setState(() => _ticketStatus = v!)),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _ruleController,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: 'Heuristic Rule',
-                  labelStyle: TextStyle(color: AppColors.textSecondary),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.cardBorder),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxDialogContentHeight),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _dropdown('Spoke', _spokeId, _spokeIds,
+                      (v) => setState(() => _spokeId = v!)),
+                  const SizedBox(height: 14),
+                  _dropdown('Alert Type', _alertType, IncidentLog.alertTypes,
+                      (v) => setState(() => _alertType = v!)),
+                  const SizedBox(height: 14),
+                  _dropdown('Severity', _severity, IncidentLog.severities,
+                      (v) => setState(() => _severity = v!)),
+                  const SizedBox(height: 14),
+                  _dropdown(
+                      'Ticket Status',
+                      _ticketStatus,
+                      IncidentLog.ticketStatuses,
+                      (v) => setState(() => _ticketStatus = v!)),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _ruleController,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Heuristic Rule',
+                      labelStyle: TextStyle(color: AppColors.textSecondary),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: AppColors.cardBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: AppColors.teal),
+                      ),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.teal),
-                  ),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -27,7 +27,7 @@ class ProvincialView extends StatefulWidget {
 class _ProvincialViewState extends State<ProvincialView> {
   final _agentRepository = WazuhAgentRepository();
   final _eventRepository = WazuhEventRepository();
-  
+
   final List<String> _tenants = _tenantSpokeIds.keys.toList();
   late String _selectedTenant = _tenants.first;
 
@@ -62,118 +62,97 @@ class _ProvincialViewState extends State<ProvincialView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tenant dropdown trigger. Built on PopupMenuButton instead of a
-          // hand-rolled Overlay/LayerLink so the menu's position is
-          // computed by Flutter itself and always renders directly
-          // attached under the button, regardless of screen width.
           LayoutBuilder(
             builder: (context, constraints) {
-              final tenantDropdown = ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width - 40),
-                child: PopupMenuButton<String>(
-                  color: AppColors.card,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: AppColors.cardBorder),
-                  ),
-                  offset: const Offset(0, 46),
-                  onSelected: (t) => setState(() => _selectedTenant = t),
-                  itemBuilder: (context) => [
-                    for (final t in _tenants)
-                      PopupMenuItem(
-                        value: t,
-                        child: Text(
-                          t,
-                          style: TextStyle(
-                            color: t == _selectedTenant
-                                ? AppColors.teal
-                                : AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
+              // Tenant selector, restyled as a small auto-width pill — same
+              // visual language as the "Sync with Batangas Hub" chip below
+              // (rounded, teal outline, no filled card background) instead
+              // of a full-width gray bordered box. A full-width card reads
+              // as its own separate section no matter where it's placed;
+              // an auto-width pill sitting right above the title reads as
+              // one small tag that belongs to the header.
+              final tenantDropdown = PopupMenuButton<String>(
+                color: AppColors.card,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: AppColors.cardBorder),
+                ),
+                offset: const Offset(0, 38),
+                onSelected: (t) => setState(() => _selectedTenant = t),
+                itemBuilder: (context) => [
+                  for (final t in _tenants)
+                    PopupMenuItem(
+                      value: t,
+                      child: Text(
+                        t,
+                        style: TextStyle(
+                          color: t == _selectedTenant
+                              ? AppColors.teal
+                              : AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
                         ),
                       ),
-                  ],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.cardBorder),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.location_on_outlined,
-                            size: 16, color: AppColors.teal),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'Tenant: $_selectedTenant',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13),
-                          ),
+                ],
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.teal),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_on_outlined,
+                          size: 13, color: AppColors.teal),
+                      const SizedBox(width: 5),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.5),
+                        child: Text(
+                          _selectedTenant,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(
+                              color: AppColors.teal,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12),
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.keyboard_arrow_down,
-                          size: 18,
-                          color: AppColors.textSecondary,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 3),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 14,
+                        color: AppColors.teal,
+                      ),
+                    ],
                   ),
                 ),
               );
 
-              final seedButton = IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                onPressed: () => setState(() {}),
-                tooltip: 'Refresh',
-                color: AppColors.textSecondary,
-              );
-
-              // Stack vertically below ~500px so the seed button never gets
-              // squeezed off-screen next to the dropdown on a phone.
-              if (constraints.maxWidth < 500) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    tenantDropdown,
-                    const SizedBox(height: 10),
-                    seedButton,
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: tenantDropdown),
-                  const SizedBox(width: 10),
-                  seedButton,
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const titleBlock = Column(
+              // Tenant pill sits directly above the title on its own —
+              // no refresh button anymore. Agent/event data already comes
+              // from live Firestore StreamBuilders (watchAgents/
+              // watchEvents), so a manual "refresh" control had no real
+              // effect; it was just calling setState(() {}) with nothing
+              // to actually re-fetch.
+              final titleBlock = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Local Agent Dashboard',
+                  const Text('Local Agent Dashboard',
                       style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 24,
                           fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
-                  Text('Tenant isolation mode: Viewing local telemetry only.',
+                  const SizedBox(height: 4),
+                  const Text(
+                      'Tenant isolation mode: Viewing local telemetry only.',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 13)),
+                  const SizedBox(height: 10),
+                  tenantDropdown,
                 ],
               );
               final hubBlock = Column(
@@ -237,7 +216,7 @@ class _ProvincialViewState extends State<ProvincialView> {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(child: titleBlock),
+                  Expanded(child: titleBlock),
                   hubBlock,
                 ],
               );
@@ -251,14 +230,15 @@ class _ProvincialViewState extends State<ProvincialView> {
             stream: _agentRepository.watchAgents(spokeId: _selectedSpokeId),
             builder: (context, agentSnap) {
               return StreamBuilder<List<WazuhEvent>>(
-                stream: _eventRepository.watchEvents(spokeId: _selectedSpokeId, limit: 1000), // Get enough events to count stats
+                stream: _eventRepository.watchEvents(
+                    spokeId: _selectedSpokeId,
+                    limit: 1000), // Get enough events to count stats
                 builder: (context, eventSnap) {
                   final agents = agentSnap.data ?? const [];
                   final events = eventSnap.data ?? const [];
 
                   final totalEndpoints = agents.length;
-                  final activeEndpoints =
-                      agents.where((a) => a.active).length;
+                  final activeEndpoints = agents.where((a) => a.active).length;
                   final criticalAlerts =
                       events.where((e) => e.severity == 'High').length;
                   final highPriority =
@@ -315,7 +295,8 @@ class _ProvincialViewState extends State<ProvincialView> {
 
           // Event table — filtered to the selected tenant's spoke_id, live.
           StreamBuilder<List<WazuhEvent>>(
-            stream: _eventRepository.watchEvents(limit: 20, spokeId: _selectedSpokeId),
+            stream: _eventRepository.watchEvents(
+                limit: 20, spokeId: _selectedSpokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 // A composite index is required for where + orderBy on
@@ -413,15 +394,14 @@ class _ProvincialViewState extends State<ProvincialView> {
                                 ),
                                 StatusBadge(
                                     label: e.severity,
-                                    color: AppColors.severityColor(
-                                        e.severity)),
+                                    color: AppColors.severityColor(e.severity)),
                                 CellText(e.description,
                                     color: AppColors.textSecondary),
                                 CellText(e.sourceIp, color: AppColors.teal),
                                 OutlinedButton(
                                   style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                        color: AppColors.teal),
+                                    side:
+                                        const BorderSide(color: AppColors.teal),
                                     foregroundColor: AppColors.teal,
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 6),
@@ -430,8 +410,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                                         MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   onPressed: () {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
                                           '${e.action} — noted for '
@@ -494,8 +473,6 @@ class _ProvincialViewState extends State<ProvincialView> {
     );
   }
 }
-
-
 
 class _TitleWithIcon extends StatelessWidget {
   const _TitleWithIcon();

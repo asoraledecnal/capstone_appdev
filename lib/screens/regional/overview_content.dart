@@ -21,6 +21,23 @@ class _OverviewContentState extends State<OverviewContent> {
   final _mitreRepository = MitreTacticRepository();
   final _eventRepository = WazuhEventRepository();
 
+  static const _previewLimit = 5;
+  static const _severityFilters = ['All', 'Critical', 'High', 'Medium', 'Low'];
+  String _selectedSeverity = 'All';
+  String _selectedAgent = 'All';
+
+  static List<T> _distinctBy<T, K>(List<T> items, K Function(T) key) {
+    final seen = <K>{};
+    final unique = <T>[];
+    for (final item in items) {
+      final value = key(item);
+      if (seen.add(value)) {
+        unique.add(item);
+      }
+    }
+    return unique;
+  }
+
   /// Maps a Wazuh rule level to the same red/orange/teal scale used
   /// elsewhere: 12+ critical, 8-11 high, below that informational.
   static Color _levelColor(int level) {
@@ -48,17 +65,10 @@ class _OverviewContentState extends State<OverviewContent> {
             trailing: Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: [
-                const StatusBadge(
-                    label: 'Wazuh Indexer: OK', color: AppColors.teal),
-                const StatusBadge(
+              children: const [
+                StatusBadge(label: 'Wazuh Indexer: OK', color: AppColors.teal),
+                StatusBadge(
                     label: 'Manager Cluster: OK', color: AppColors.teal),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  onPressed: () => setState(() {}),
-                  tooltip: 'Refresh',
-                  color: AppColors.textSecondary,
-                ),
               ],
             ),
           ),
@@ -139,35 +149,41 @@ class _OverviewContentState extends State<OverviewContent> {
             );
           }
           final agents = snapshot.data!;
+          final previewAgents = agents.length > _previewLimit
+              ? agents.sublist(0, _previewLimit)
+              : agents;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Agent Status',
-                      style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15)),
-                  StatusBadge(
-                      label: 'Total: ${agents.length}',
-                      color: AppColors.textSecondary,
-                      outlined: false),
+                  const Text(
+                    'Agent Status',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary),
+                  ),
+                  Text(
+                    '${agents.length} Total',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               if (agents.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'No agents yet.',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    'No agents yet. Add agents from your Wazuh pipeline.',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
-                for (final agent in agents) _agentTile(agent),
+                for (final agent in previewAgents) _agentTile(agent),
             ],
           );
         },
@@ -421,26 +437,73 @@ class _OverviewContentState extends State<OverviewContent> {
             );
           }
           final events = snapshot.data!;
+          final uniqueEvents = _distinctBy(events, (WazuhEvent e) => e.id);
+          final filteredEvents = uniqueEvents.where((e) {
+            final severityLabel = _severityLabel(e.level);
+            if (_selectedSeverity != 'All' &&
+                severityLabel != _selectedSeverity) {
+              return false;
+            }
+            if (_selectedAgent != 'All' && e.agent != _selectedAgent) {
+              return false;
+            }
+            return true;
+          }).toList();
+          final previewEvents = filteredEvents.take(_previewLimit).toList();
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 6,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _EventStreamTitle(),
-                  _RefreshRow(),
+                  const Text(
+                    'Latest Security Events',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary),
+                  ),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      // Severity Filter
+                      _buildFilterDropdown(
+                        value: _selectedSeverity,
+                        items: _severityFilters,
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedSeverity = val);
+                          }
+                        },
+                      ),
+                      // Agent Filter
+                      _buildFilterDropdown(
+                        value: _selectedAgent,
+                        items: [
+                          'All',
+                          ..._distinctBy(uniqueEvents, (e) => e.agent)
+                              .map((e) => e.agent)
+                              .where((a) => a.isNotEmpty)
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedAgent = val);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              if (events.isEmpty)
+              const SizedBox(height: 16),
+              if (filteredEvents.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'No events yet.',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    'No events match the selected filters.',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
               else
@@ -448,7 +511,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   builder: (context, constraints) {
                     final narrow = constraints.maxWidth < 560;
                     if (narrow) {
-                      return _eventCardList(context, events);
+                      return _eventCardList(context, previewEvents);
                     }
                     return HScrollBox(
                       minWidth: 620,
@@ -706,6 +769,46 @@ class _OverviewContentState extends State<OverviewContent> {
       ),
     );
   }
+  String _severityLabel(int level) {
+    if (level >= 12) return 'Critical';
+    if (level >= 8) return 'High';
+    if (level >= 4) return 'Medium';
+    return 'Low';
+  }
+
+  Widget _buildFilterDropdown({
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: DropdownButton<String>(
+          value: value,
+          underline: const SizedBox.shrink(),
+          borderRadius: BorderRadius.circular(10),
+          icon:
+              const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          dropdownColor: AppColors.card,
+          items: items
+              .map((item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(item,
+                        style: const TextStyle(color: AppColors.textPrimary)),
+                  ))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
 }
 
 class _LegendDot extends StatelessWidget {
@@ -727,39 +830,4 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
-class _EventStreamTitle extends StatelessWidget {
-  const _EventStreamTitle();
 
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.terminal, size: 16, color: AppColors.teal),
-        SizedBox(width: 8),
-        Text('Real-Time Event Stream',
-            style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 15)),
-      ],
-    );
-  }
-}
-
-class _RefreshRow extends StatelessWidget {
-  const _RefreshRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.refresh, size: 16, color: AppColors.textSecondary),
-        SizedBox(width: 4),
-        Text('Refresh',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      ],
-    );
-  }
-}
