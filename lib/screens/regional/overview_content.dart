@@ -431,17 +431,41 @@ class _OverviewContentState extends State<OverviewContent> {
                           lineTouchData: LineTouchData(
                             touchTooltipData: LineTouchTooltipData(
                               getTooltipColor: (_) => AppColors.card,
+                              maxContentWidth: 250,
                               getTooltipItems: (touchedSpots) {
                                 return touchedSpots.map((spot) {
                                   final event = events[spot.x.toInt()];
                                   final String time =
                                       '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}';
                                   return LineTooltipItem(
-                                    '$time\nLevel ${event.level}',
+                                    '$time - Level ${event.level}\n',
                                     const TextStyle(
                                         color: AppColors.textPrimary,
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.bold),
+                                    children: [
+                                      TextSpan(
+                                        text: 'Rule: ${event.ruleId}\n',
+                                        style: const TextStyle(
+                                            color: AppColors.teal,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.normal),
+                                      ),
+                                      TextSpan(
+                                        text: 'Agent: ${event.agent}\n',
+                                        style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.normal),
+                                      ),
+                                      TextSpan(
+                                        text: event.description,
+                                        style: const TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.normal),
+                                      ),
+                                    ],
                                   );
                                 }).toList();
                               },

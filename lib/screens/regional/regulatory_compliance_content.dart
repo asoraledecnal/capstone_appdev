@@ -63,16 +63,28 @@ class RegulatoryComplianceContent extends StatelessWidget {
                 builder: (context, constraints) {
                   final cards = records.map((r) {
                     IconData icon;
-                    if (r.framework.contains('CIS')) {
-                      icon = Icons.fact_check_outlined;
+                    String description = '';
+                    if (r.framework.contains('NIST')) {
+                      icon = Icons.security_outlined;
+                      description = 'National Institute of Standards and Technology. Framework for improving critical infrastructure cybersecurity.';
+                    } else if (r.framework.contains('HIPAA')) {
+                      icon = Icons.medical_services_outlined;
+                      description = 'Health Insurance Portability and Accountability Act. Security standards for protecting sensitive data.';
                     } else if (r.framework.contains('PCI')) {
-                      icon = Icons.shield_outlined;
+                      icon = Icons.credit_card_outlined;
+                      description = 'Payment Card Industry Data Security Standard. Ensures secure processing of card information.';
+                    } else if (r.framework.contains('ISO')) {
+                      icon = Icons.verified_user_outlined;
+                      description = 'International standard for managing information security (ISMS).';
                     } else {
-                      icon = Icons.donut_small_outlined;
+                      icon = Icons.fact_check_outlined;
+                      description = 'Standardized security benchmarks and best practices.';
                     }
+                    
                     return _complianceCard(
                       icon: icon,
                       title: r.framework,
+                      description: description,
                       percent: r.percent,
                       passed: r.passed,
                       failed: r.failed,
@@ -123,6 +135,7 @@ class RegulatoryComplianceContent extends StatelessWidget {
   Widget _complianceCard({
     required IconData icon,
     required String title,
+    required String description,
     required double percent,
     required int passed,
     required int failed,
@@ -149,14 +162,23 @@ class RegulatoryComplianceContent extends StatelessWidget {
                     style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14)),
+                        fontSize: 15)),
               ),
-              Text('${(percent * 100).toStringAsFixed(0)}%',
+              Text('${percent.toStringAsFixed(0)}%',
                   style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 18)),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 14),
           ClipRRect(
