@@ -597,19 +597,25 @@ class _OverviewContentState extends State<OverviewContent> {
                         },
                       ),
                       // Agent Filter
-                      _buildFilterDropdown(
-                        value: _selectedAgent,
-                        items: [
-                          'All',
-                          ..._distinctBy(uniqueEvents, (e) => e.agent)
-                              .map((e) => e.agent)
-                              .where((a) => a.isNotEmpty)
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _selectedAgent = val);
-                          }
-                        },
+                      Builder(
+                        builder: (context) {
+                          final agentItems = {
+                            'All',
+                            if (_selectedAgent != 'All') _selectedAgent,
+                            ..._distinctBy(uniqueEvents, (e) => e.agent)
+                                .map((e) => e.agent)
+                                .where((a) => a.isNotEmpty)
+                          }.toList();
+                          return _buildFilterDropdown(
+                            value: _selectedAgent,
+                            items: agentItems,
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _selectedAgent = val);
+                              }
+                            },
+                          );
+                        }
                       ),
                     ],
                   ),

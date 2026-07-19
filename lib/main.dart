@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'theme/app_colors.dart';
 import 'screens/login_screen.dart';
@@ -32,7 +33,24 @@ class WazuhApp extends StatelessWidget {
           surface: AppColors.background,
         ),
       ),
-      home: const HomeShell(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          // While Firebase is checking the token, show a blank loading screen
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              backgroundColor: AppColors.background,
+              body: Center(child: CircularProgressIndicator(color: AppColors.teal)),
+            );
+          }
+          // If the user is successfully logged in, take them to the dashboard
+          if (snapshot.hasData && snapshot.data != null) {
+            return const HomeShell();
+          }
+          // Otherwise, send them to the login screen
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }
