@@ -11,16 +11,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// it's expected/benign activity, matching how the original mockup data
 /// assigned colors independently of the numeric bar length).
 class MitreTactic {
-  final String id; // Firestore document ID, e.g. 'initial-access'
-  final String tacticName; // Display name, e.g. 'Initial Access'
-  final double score; // 0.0 - 1.0, drives the bar length
-  final String severity; // Low | Medium | High | Critical, drives bar color
+  final String id;
+  final String tacticName;
+  final double score;
+  final String severity;
+  final String description;
+  final DateTime? lastDetected;
 
   const MitreTactic({
     required this.id,
     required this.tacticName,
     required this.score,
     required this.severity,
+    this.description = '',
+    this.lastDetected,
   });
 
   factory MitreTactic.fromFirestore(
@@ -29,11 +33,19 @@ class MitreTactic {
     final data = doc.data() ?? const {};
     final rawScore = data['score'];
     final score = (rawScore is num) ? rawScore.toDouble() : 0.0;
+    
+    DateTime? ts;
+    if (data['last_detected'] is Timestamp) {
+      ts = (data['last_detected'] as Timestamp).toDate();
+    }
+    
     return MitreTactic(
       id: doc.id,
       tacticName: data['tactic_name'] as String? ?? '',
       score: score.clamp(0.0, 1.0),
       severity: data['severity'] as String? ?? 'Low',
+      description: data['description'] as String? ?? '',
+      lastDetected: ts,
     );
   }
 
@@ -41,5 +53,7 @@ class MitreTactic {
         'tactic_name': tacticName,
         'score': score,
         'severity': severity,
+        'description': description,
+        if (lastDetected != null) 'last_detected': Timestamp.fromDate(lastDetected!),
       };
 }

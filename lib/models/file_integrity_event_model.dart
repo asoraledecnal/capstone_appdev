@@ -20,7 +20,7 @@ class FileIntegrityEvent {
     return FileIntegrityEvent(
       id: doc.id,
       timestamp: (data['timestamp'] as Timestamp).toDate(),
-      agentName: data['agent_name'] ?? '',
+      agentName: data['agent_name'] ?? data['endpoint'] ?? '',
       filePath: data['file_path'] ?? '',
       action: data['action'] ?? '',
     );

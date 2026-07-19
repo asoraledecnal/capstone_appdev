@@ -17,10 +17,18 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {});
+        await Future.delayed(const Duration(milliseconds: 500));
+      },
+      color: AppColors.teal,
+      backgroundColor: AppColors.card,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           StreamBuilder<List<CveFinding>>(
             stream: _repository.watchCves(),
@@ -41,12 +49,6 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                   children: [
                     _statPill('$criticalCount', 'CRITICAL', AppColors.red),
                     _statPill('$highCount', 'HIGH', AppColors.orange),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 20),
-                      onPressed: () => setState(() {}),
-                      tooltip: 'Refresh',
-                      color: AppColors.textSecondary,
-                    ),
                   ],
                 ),
               );
@@ -146,7 +148,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   /// Mobile-width replacement for the 5-column table: one tappable card

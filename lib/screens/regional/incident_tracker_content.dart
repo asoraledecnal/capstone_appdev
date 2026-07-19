@@ -25,37 +25,33 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PageHeader(
-            title: 'Incident Tracker',
-            subtitle:
-                'Heuristic behavioral-analytics log — metadata only, RA 10173 compliant.',
-            trailing: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  onPressed: () => setState(() {}),
-                  tooltip: 'Refresh',
-                  color: AppColors.textSecondary,
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {});
+        await Future.delayed(const Duration(milliseconds: 500));
+      },
+      color: AppColors.teal,
+      backgroundColor: AppColors.card,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PageHeader(
+              title: 'Incident Tracker',
+              subtitle:
+                  'Heuristic behavioral-analytics log — metadata only, RA 10173 compliant.',
+              trailing: ElevatedButton.icon(
+                onPressed: () => _showIncidentForm(context),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('New Incident'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.teal,
+                  foregroundColor: Colors.black,
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showIncidentForm(context),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('New Incident'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.teal,
-                    foregroundColor: Colors.black,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
           const SizedBox(height: 20),
           DashCard(
             child: StreamBuilder<List<IncidentLog>>(
@@ -140,7 +136,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _incidentTable(List<IncidentLog> logs) {

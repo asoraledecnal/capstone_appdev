@@ -323,6 +323,7 @@ class _ProvincialViewState extends State<ProvincialView> {
               }
 
               final events = snapshot.data!;
+              final previewEvents = events.take(5).toList();
 
               return DashCard(
                 child: Column(
@@ -374,7 +375,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                             Alignment.center,
                           ],
                           rows: [
-                            for (final e in events)
+                            for (final e in previewEvents)
                               [
                                 CellText(_formatTime(e.timestamp),
                                     color: AppColors.textSecondary),
@@ -429,21 +430,27 @@ class _ProvincialViewState extends State<ProvincialView> {
                               ],
                           ],
                           onRowTap: [
-                            for (final e in events)
+                            for (final e in previewEvents)
                               () => _showEventDetails(context, e),
                           ],
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        'Showing ${events.length} recent security events for '
-                        '$_selectedTenant.',
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 11),
-                        textAlign: TextAlign.center,
+                    if (events.length > 5) ...[
+                      const SizedBox(height: 16),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => _showAllEventsDialog(context, events),
+                          child: Text(
+                            'View All History (${events.length})',
+                            style: const TextStyle(
+                              color: AppColors.teal,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               );
@@ -451,6 +458,115 @@ class _ProvincialViewState extends State<ProvincialView> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showAllEventsDialog(BuildContext context, List<WazuhEvent> allEvents) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.cardBorder),
+          ),
+          title: const Text('Event History',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: 1000,
+            height: 600,
+            child: SingleChildScrollView(
+              child: HScrollBox(
+                minWidth: 1180,
+                child: SimpleTable(
+                  headers: const [
+                    'TIME',
+                    'ENDPOINT',
+                    'EVENT TYPE',
+                    'SEVERITY',
+                    'DESCRIPTION',
+                    'SOURCE',
+                    'ACTION'
+                  ],
+                  flex: const [1, 2, 2, 2, 4, 2, 2],
+                  align: const [
+                    Alignment.center,
+                    Alignment.centerLeft,
+                    Alignment.centerLeft,
+                    Alignment.center,
+                    Alignment.centerLeft,
+                    Alignment.center,
+                    Alignment.center,
+                  ],
+                  rows: [
+                    for (final e in allEvents)
+                      [
+                        CellText(_formatTime(e.timestamp),
+                            color: AppColors.textSecondary),
+                        CellText(e.endpoint, weight: FontWeight.w600),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_eventIcon(e.type),
+                                size: 14, color: AppColors.textSecondary),
+                            const SizedBox(width: 6),
+                            Flexible(
+                                child: CellText(
+                                    e.type.isEmpty ? 'Unknown Event' : e.type,
+                                    color: AppColors.textSecondary)),
+                          ],
+                        ),
+                        StatusBadge(
+                            label: e.severity,
+                            color: AppColors.severityColor(e.severity)),
+                        CellText(e.description, color: AppColors.textSecondary),
+                        CellText(e.sourceIp, color: AppColors.teal),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.teal),
+                            foregroundColor: AppColors.teal,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${e.action} — noted for '
+                                  '${e.endpoint} (not yet wired to '
+                                  'the Sophos/pfSense mitigation API).',
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(e.action,
+                              style: const TextStyle(fontSize: 11)),
+                        ),
+                      ],
+                  ],
+                  onRowTap: [
+                    for (final e in allEvents)
+                      () => _showEventDetails(context, e),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close',
+                  style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -601,14 +717,28 @@ class _RefreshLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.refresh, size: 15, color: AppColors.textSecondary),
-        SizedBox(width: 4),
-        Text('Live',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      ],
+    return InkWell(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dashboard is streaming live in real-time! No manual refresh needed.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.autorenew, size: 15, color: AppColors.teal),
+            SizedBox(width: 4),
+            Text('Live',
+                style: TextStyle(color: AppColors.teal, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
     );
   }
 }

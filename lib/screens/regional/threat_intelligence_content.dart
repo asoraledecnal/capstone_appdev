@@ -34,22 +34,24 @@ class _ThreatIntelligenceContentState
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PageHeader(
-            title: 'Threat Intelligence',
-            subtitle:
-                'Identified Indicators of Compromise (IoCs) matched against live traffic.',
-            trailing: IconButton(
-              icon: const Icon(Icons.refresh, size: 20),
-              onPressed: () => setState(() {}),
-              tooltip: 'Refresh',
-              color: AppColors.textSecondary,
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {});
+        await Future.delayed(const Duration(milliseconds: 500));
+      },
+      color: AppColors.teal,
+      backgroundColor: AppColors.card,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PageHeader(
+              title: 'Threat Intelligence',
+              subtitle:
+                  'Identified Indicators of Compromise (IoCs) matched against live traffic.',
             ),
-          ),
           const SizedBox(height: 20),
           StreamBuilder<List<IocFinding>>(
             stream: _repository.watchIocs(),
@@ -157,7 +159,7 @@ class _ThreatIntelligenceContentState
           ),
         ],
       ),
-    );
+    ));
   }
 
   /// Mobile-width replacement for the IoC table: one card per indicator so

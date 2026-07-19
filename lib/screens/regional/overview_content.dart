@@ -428,6 +428,25 @@ class _OverviewContentState extends State<OverviewContent> {
                             ),
                           ),
                           borderData: FlBorderData(show: false),
+                          lineTouchData: LineTouchData(
+                            touchTooltipData: LineTouchTooltipData(
+                              getTooltipColor: (_) => AppColors.card,
+                              getTooltipItems: (touchedSpots) {
+                                return touchedSpots.map((spot) {
+                                  final event = events[spot.x.toInt()];
+                                  final String time =
+                                      '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}';
+                                  return LineTooltipItem(
+                                    '$time\nLevel ${event.level}',
+                                    const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold),
+                                  );
+                                }).toList();
+                              },
+                            ),
+                          ),
                           lineBarsData: [
                             LineChartBarData(
                               isCurved: false,
@@ -501,32 +520,113 @@ class _OverviewContentState extends State<OverviewContent> {
   }
 
   Widget _tacticBar(MitreTactic t) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              t.tacticName,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11.5),
-            ),
-          ),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: t.score,
-                minHeight: 8,
-                backgroundColor: AppColors.background,
-                valueColor:
-                    AlwaysStoppedAnimation(AppColors.severityColor(t.severity)),
+    return InkWell(
+      onTap: () => _showMitreDetail(context, t),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 90,
+              child: Text(
+                t.tacticName,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11.5),
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: t.score,
+                  minHeight: 8,
+                  backgroundColor: AppColors.background,
+                  valueColor: AlwaysStoppedAnimation(
+                      AppColors.severityColor(t.severity)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showMitreDetail(BuildContext context, MitreTactic t) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        String timeStr = 'Unknown';
+        if (t.lastDetected != null) {
+          final dt = t.lastDetected!;
+          timeStr = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
+              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(t.tacticName,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  StatusBadge(
+                      label: t.severity.toUpperCase(),
+                      color: AppColors.severityColor(t.severity)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('Description',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(
+                t.description.isNotEmpty
+                    ? t.description
+                    : 'No description available for this tactic.',
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              const Text('Last Detected',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(
+                timeStr,
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14, height: 1.4),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -582,40 +682,43 @@ class _OverviewContentState extends State<OverviewContent> {
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary),
                   ),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                  Row(
                     children: [
                       // Severity Filter
-                      _buildFilterDropdown(
-                        value: _selectedSeverity,
-                        items: _severityFilters,
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _selectedSeverity = val);
-                          }
-                        },
+                      Expanded(
+                        child: _buildFilterDropdown(
+                          value: _selectedSeverity,
+                          items: _severityFilters,
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _selectedSeverity = val);
+                            }
+                          },
+                        ),
                       ),
+                      const SizedBox(width: 12),
                       // Agent Filter
-                      Builder(
-                        builder: (context) {
-                          final agentItems = {
-                            'All',
-                            if (_selectedAgent != 'All') _selectedAgent,
-                            ..._distinctBy(uniqueEvents, (e) => e.agent)
-                                .map((e) => e.agent)
-                                .where((a) => a.isNotEmpty)
-                          }.toList();
-                          return _buildFilterDropdown(
-                            value: _selectedAgent,
-                            items: agentItems,
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedAgent = val);
-                              }
-                            },
-                          );
-                        }
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            final agentItems = {
+                              'All',
+                              if (_selectedAgent != 'All') _selectedAgent,
+                              ..._distinctBy(uniqueEvents, (e) => e.agent)
+                                  .map((e) => e.agent)
+                                  .where((a) => a.isNotEmpty)
+                            }.toList();
+                            return _buildFilterDropdown(
+                              value: _selectedAgent,
+                              items: agentItems,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() => _selectedAgent = val);
+                                }
+                              },
+                            );
+                          }
+                        ),
                       ),
                     ],
                   ),
@@ -657,7 +760,7 @@ class _OverviewContentState extends State<OverviewContent> {
                           Alignment.centerLeft,
                         ],
                         rows: [
-                          for (final e in events)
+                          for (final e in previewEvents)
                             [
                               _tappableCell(
                                 context,
@@ -695,10 +798,114 @@ class _OverviewContentState extends State<OverviewContent> {
                     );
                   },
                 ),
+                if (filteredEvents.length > _previewLimit) ...[
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _showAllEventsDialog(context, filteredEvents),
+                      child: Text(
+                        'View All History (${filteredEvents.length})',
+                        style: const TextStyle(
+                          color: AppColors.teal,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
             ],
           );
         },
       ),
+    );
+  }
+
+  void _showAllEventsDialog(BuildContext context, List<WazuhEvent> allEvents) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.cardBorder),
+          ),
+          title: const Text('Event History',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: 800,
+            height: 600,
+            child: SingleChildScrollView(
+              child: HScrollBox(
+                minWidth: 620,
+                child: SimpleTable(
+                  headers: const [
+                    'TIMESTAMP',
+                    'AGENT',
+                    'RULE ID',
+                    'LEVEL',
+                    'DESCRIPTION'
+                  ],
+                  flex: const [2, 3, 2, 1, 5],
+                  align: const [
+                    Alignment.centerLeft,
+                    Alignment.centerLeft,
+                    Alignment.centerLeft,
+                    Alignment.center,
+                    Alignment.centerLeft,
+                  ],
+                  rows: [
+                    for (final e in allEvents)
+                      [
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(_formatTime(e.timestamp),
+                              color: AppColors.textSecondary),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e.agent, color: AppColors.teal),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e.ruleId, color: AppColors.teal),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          StatusBadge(
+                            label: '${e.level}',
+                            color: _levelColor(e.level),
+                          ),
+                        ),
+                        _tappableCell(
+                          context,
+                          e,
+                          CellText(e.description,
+                              color: AppColors.textSecondary),
+                        ),
+                      ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close',
+                  style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -905,10 +1112,8 @@ class _OverviewContentState extends State<OverviewContent> {
     required String value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
-    double width = 150,
   }) {
     return Container(
-      width: width,
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(10),
