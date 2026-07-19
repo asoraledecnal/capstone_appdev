@@ -58,14 +58,14 @@ class _OverviewContentState extends State<OverviewContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PageHeader(
+          const PageHeader(
             title: 'Security Events Dashboard',
             subtitle:
                 'Aggregated telemetry from all Region 4A provincial agents.',
             trailing: Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: const [
+              children: [
                 StatusBadge(label: 'Wazuh Indexer: OK', color: AppColors.teal),
                 StatusBadge(
                     label: 'Manager Cluster: OK', color: AppColors.teal),
@@ -454,8 +454,11 @@ class _OverviewContentState extends State<OverviewContent> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 12,
                 children: [
                   const Text(
                     'Latest Security Events',
@@ -466,6 +469,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   ),
                   Wrap(
                     spacing: 12,
+                    runSpacing: 12,
                     children: [
                       // Severity Filter
                       _buildFilterDropdown(
