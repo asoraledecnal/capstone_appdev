@@ -49,3 +49,6 @@ node_modules/
 # Firebase Admin SDK Secrets
 service-account-key.json
 *-key.json
+
+# Admin Scripts
+tool/admin_script/*.js

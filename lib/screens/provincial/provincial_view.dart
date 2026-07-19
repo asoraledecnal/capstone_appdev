@@ -7,10 +7,9 @@ import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
 /// Maps the tenant dropdown labels to their spoke_id, matching the
-/// SPOKE-01..05 records in the `spokes` collection (see
-/// assets/firestore_schema_and_data.json). Batangas is the hub, not a
-/// tenant here, so it's intentionally not in this list.
+/// SPOKE-01..05 records in the `spokes` collection.
 const Map<String, String> _tenantSpokeIds = {
+  'Batangas Regional Hub': 'SPOKE-03',
   'Cavite Provincial Office': 'SPOKE-01',
   'Laguna Provincial Office': 'SPOKE-02',
   'Rizal Provincial Office': 'SPOKE-04',
@@ -383,12 +382,15 @@ class _ProvincialViewState extends State<ProvincialView> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(_eventIcon(e.description),
+                                    Icon(_eventIcon(e.type),
                                         size: 14,
                                         color: AppColors.textSecondary),
                                     const SizedBox(width: 6),
                                     Flexible(
-                                        child: CellText(e.description,
+                                        child: CellText(
+                                            e.type.isEmpty
+                                                ? 'Unknown Event'
+                                                : e.type,
                                             color: AppColors.textSecondary)),
                                   ],
                                 ),
@@ -516,6 +518,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                 _detailRow('Time', _formatTime(event.timestamp)),
                 _detailRow('Severity', event.severity,
                     color: AppColors.severityColor(event.severity)),
+                _detailRow('Rule Level', 'Level ${event.level}'),
                 _detailRow('Source IP', event.sourceIp),
                 _detailRow('Action Taken', event.action),
                 const SizedBox(height: 16),

@@ -23,6 +23,7 @@ class WazuhEvent {
   final String agent; // e.g. 'laguna-po-agent'
   final String ruleId; // Wazuh rule ID, e.g. '5710'
   final int level; // Wazuh rule level, 0-16
+  final String type; // short category label, e.g. 'Login Attempt'
   final String description;
   final String spokeId; // FK -> spokes/{spokeId}, e.g. 'SPOKE-02'
   final String endpoint; // specific host, e.g. 'LAGUNA-WS-012'
@@ -36,6 +37,7 @@ class WazuhEvent {
     required this.agent,
     required this.ruleId,
     required this.level,
+    this.type = '',
     required this.description,
     this.spokeId = '',
     this.endpoint = '',
@@ -67,6 +69,7 @@ class WazuhEvent {
       agent: data['agent'] as String? ?? '',
       ruleId: data['rule_id'] as String? ?? '',
       level: level,
+      type: data['type'] as String? ?? '',
       description: data['description'] as String? ?? '',
       spokeId: data['spoke_id'] as String? ?? '',
       endpoint: data['endpoint'] as String? ?? '',
@@ -81,6 +84,7 @@ class WazuhEvent {
         'agent': agent,
         'rule_id': ruleId,
         'level': level,
+        'type': type,
         'description': description,
         'spoke_id': spokeId,
         'endpoint': endpoint,

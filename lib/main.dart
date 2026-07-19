@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'theme/app_colors.dart';
 import 'screens/login_screen.dart';
+import 'screens/home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +32,7 @@ class WazuhApp extends StatelessWidget {
           surface: AppColors.background,
         ),
       ),
-      home: const LoginScreen(),
+      home: const HomeShell(),
     );
   }
 }

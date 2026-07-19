@@ -182,8 +182,25 @@ class _OverviewContentState extends State<OverviewContent> {
                         TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 )
-              else
+              else ...[
                 for (final agent in previewAgents) _agentTile(agent),
+                if (agents.length > _previewLimit) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _showAllAgentsDialog(context, agents),
+                      child: Text(
+                        'View All (${agents.length})',
+                        style: const TextStyle(
+                          color: AppColors.teal,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ],
           );
         },
@@ -235,6 +252,104 @@ class _OverviewContentState extends State<OverviewContent> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAllAgentsDialog(BuildContext context, List<WazuhAgent> allAgents) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String filter = 'All';
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final filteredAgents = allAgents.where((a) {
+              if (filter == 'Active') return a.active;
+              if (filter == 'Inactive') return !a.active;
+              return true;
+            }).toList();
+
+            return Dialog(
+              backgroundColor: AppColors.background,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Container(
+                width: 400,
+                constraints: const BoxConstraints(maxHeight: 600),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'All Agents',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppColors.textMuted),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _filterChip('All', filter == 'All', () => setState(() => filter = 'All')),
+                        const SizedBox(width: 8),
+                        _filterChip('Active', filter == 'Active', () => setState(() => filter = 'Active')),
+                        const SizedBox(width: 8),
+                        _filterChip('Inactive', filter == 'Inactive', () => setState(() => filter = 'Inactive')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: filteredAgents.isEmpty
+                          ? const Center(
+                              child: Text('No agents match the filter.',
+                                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredAgents.length,
+                              itemBuilder: (context, index) {
+                                return _agentTile(filteredAgents[index]);
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _filterChip(String label, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.teal.withValues(alpha: 0.15) : AppColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? AppColors.teal : AppColors.cardBorder),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppColors.teal : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }
@@ -784,8 +899,10 @@ class _OverviewContentState extends State<OverviewContent> {
     required String value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
+    double width = 150,
   }) {
-    return DecoratedBox(
+    return Container(
+      width: width,
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(10),
@@ -794,6 +911,7 @@ class _OverviewContentState extends State<OverviewContent> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: DropdownButton<String>(
+          isExpanded: true,
           value: value,
           underline: const SizedBox.shrink(),
           borderRadius: BorderRadius.circular(10),
@@ -804,8 +922,11 @@ class _OverviewContentState extends State<OverviewContent> {
           items: items
               .map((item) => DropdownMenuItem(
                     value: item,
-                    child: Text(item,
-                        style: const TextStyle(color: AppColors.textPrimary)),
+                    child: Text(
+                      item,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ))
               .toList(),
           onChanged: onChanged,
