@@ -51,7 +51,7 @@ class ReportGenerator {
       pageFormat: PdfPageFormat.a4,
       theme: _theme(),
       header: (ctx) => _header(logo, 'Weekly Security Summary',
-          'Past 7 days  •  ${_fmt(since)} – ${_fmt(DateTime.now())}'),
+          'Past 7 days  |  ${_fmt(since)} - ${_fmt(DateTime.now())}'),
       footer: (ctx) => _footer(ctx),
       build: (ctx) => [
         _sectionTitle('Overview Statistics'),
@@ -107,7 +107,7 @@ class ReportGenerator {
       pageFormat: PdfPageFormat.a4,
       theme: _theme(),
       header: (ctx) => _header(logo, 'Failed Login Audit',
-          'Generated ${_fmt(DateTime.now())}  •  Last 200 auth events'),
+          'Generated ${_fmt(DateTime.now())}  |  Last 200 auth events'),
       footer: (ctx) => _footer(ctx),
       build: (ctx) => [
         _sectionTitle('Authentication Event Summary'),
