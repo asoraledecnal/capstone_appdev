@@ -21,6 +21,7 @@ class ReportGenerator {
   static const _dark = PdfColor.fromInt(0xFF0B0F14);
   static const _panel = PdfColor.fromInt(0xFF141A22);
   static const _textMuted = PdfColor.fromInt(0xFF64748B);
+  static const _tableAlt = PdfColor.fromInt(0xFFF1F5F9); // Light gray for alternating rows
   static const _red = PdfColor.fromInt(0xFFEF4444);
   static const _orange = PdfColor.fromInt(0xFFF97316);
   static const _green = PdfColor.fromInt(0xFF22C55E);
@@ -261,7 +262,7 @@ class ReportGenerator {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('DICT-4A SIEM — $spokeName',
+                pw.Text('DICT-4A SIEM - $spokeName',
                     style: pw.TextStyle(
                         fontSize: 10,
                         color: _teal,
@@ -288,7 +289,7 @@ class ReportGenerator {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text('DICT-4A Wazuh SIEM — Confidential',
+          pw.Text('DICT-4A Wazuh SIEM - Confidential',
               style: const pw.TextStyle(fontSize: 8, color: _textMuted)),
           pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
               style: const pw.TextStyle(fontSize: 8, color: _textMuted)),
@@ -405,7 +406,7 @@ class ReportGenerator {
       headerDecoration: const pw.BoxDecoration(color: _teal),
       cellStyle: const pw.TextStyle(fontSize: 8),
       cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-      oddRowDecoration: const pw.BoxDecoration(color: _panel),
+      oddRowDecoration: const pw.BoxDecoration(color: _tableAlt),
       columnWidths: {
         0: const pw.FlexColumnWidth(2),
         for (int i = 1; i < headers.length; i++) i: const pw.FlexColumnWidth(1.5),
