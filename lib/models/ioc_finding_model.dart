@@ -10,6 +10,7 @@ class IocFinding {
   final String type; // 'IP Address' | 'File Hash (SHA256)' | 'DNS Query'
   final String threatActor; // e.g. 'Mirai Botnet'
   final String agentName; // e.g. 'rizal-po-agent'
+  final String spokeId; // FK -> spokes/{spokeId}, e.g. 'SPOKE-01'
   final DateTime lastSeen;
 
   const IocFinding({
@@ -18,6 +19,7 @@ class IocFinding {
     required this.type,
     required this.threatActor,
     required this.agentName,
+    this.spokeId = '',
     required this.lastSeen,
   });
 
@@ -41,6 +43,7 @@ class IocFinding {
       type: data['type'] as String? ?? '',
       threatActor: data['threat_actor'] as String? ?? '',
       agentName: data['agent_name'] as String? ?? '',
+      spokeId: data['spoke_id'] as String? ?? '',
       lastSeen: ts,
     );
   }
@@ -50,6 +53,7 @@ class IocFinding {
         'type': type,
         'threat_actor': threatActor,
         'agent_name': agentName,
+        'spoke_id': spokeId,
         'last_seen': Timestamp.fromDate(lastSeen),
       };
 }

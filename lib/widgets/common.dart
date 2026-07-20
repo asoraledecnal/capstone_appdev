@@ -193,6 +193,7 @@ class SimpleTable extends StatelessWidget {
         const Divider(height: 1, color: AppColors.cardBorder),
         for (int r = 0; r < rows.length; r++) ...[
           InkWell(
+            key: ValueKey('row_$r'),
             onTap: onRowTap != null && onRowTap!.length > r ? onRowTap![r] : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),

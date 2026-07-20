@@ -19,6 +19,20 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // If a user is already signed in (e.g. app was closed and reopened),
+    // skip the login screen entirely and go straight to the shell.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (FirebaseAuth.instance.currentUser != null && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeShell()),
+        );
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _userCtrl.dispose();
     _passCtrl.dispose();
@@ -57,6 +71,8 @@ class _LoginScreenState extends State<LoginScreen> {
           'user-disabled' => 'This account has been disabled.',
           'too-many-requests' =>
             'Too many attempts. Please wait a moment and try again.',
+          'network-request-failed' =>
+            'No internet connection. Check your network and try again.',
           _ => 'Sign-in failed: ${e.message ?? e.code}',
         };
       });

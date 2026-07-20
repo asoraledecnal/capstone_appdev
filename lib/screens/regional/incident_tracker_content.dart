@@ -1,4 +1,4 @@
-import 'dart:math';
+
 
 import 'package:flutter/material.dart';
 
@@ -328,14 +328,14 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
   }
 
   Color _statusColor(String status) {
-    switch (status) {
-      case 'Open':
+    switch (status.toLowerCase()) {
+      case 'open':
         return AppColors.red;
-      case 'Investigating':
+      case 'investigating':
         return AppColors.orange;
-      case 'Mitigated':
+      case 'mitigated':
         return AppColors.blue;
-      case 'Resolved':
+      case 'resolved':
         return AppColors.green;
       default:
         return AppColors.textMuted;
@@ -571,17 +571,9 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
         existing: existing,
         onSubmit: (log) async {
           if (existing == null) {
-            final id = _generateIncidentId();
-            final logWithId = IncidentLog(
-              id: id,
-              spokeId: log.spokeId,
-              timestamp: log.timestamp,
-              alertType: log.alertType,
-              severity: log.severity,
-              heuristicRule: log.heuristicRule,
-              ticketStatus: log.ticketStatus,
-            );
-            await _repository.createIncident(logWithId.toFirestore());
+            // Use Firestore's auto-generated doc ID to guarantee uniqueness.
+            // The previous random 3-digit suffix caused collision risk.
+            await _repository.createIncident(log.toFirestore());
           } else {
             await _repository.updateIncident(existing.id, log.toFirestore());
           }
@@ -590,15 +582,8 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
     );
   }
 
-  /// Generates an INC-YYYYMMDD-XXX id, matching the format documented in
-  /// assets/firestore_schema_and_data.json.
-  String _generateIncidentId() {
-    final now = DateTime.now();
-    String two(int n) => n.toString().padLeft(2, '0');
-    final datePart = '${now.year}${two(now.month)}${two(now.day)}';
-    final suffix = (Random().nextInt(900) + 100); // 100-999
-    return 'INC-$datePart-$suffix';
-  }
+  // _generateIncidentId() removed — Firestore auto-IDs are used instead
+  // to prevent the birthday-paradox collision risk from a 3-digit suffix.
 }
 
 /// Create/update form shown in a dialog. Handles both flows: when

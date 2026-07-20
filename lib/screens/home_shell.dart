@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +32,7 @@ class _HomeShellState extends State<HomeShell> {
   RegionalModule _module = RegionalModule.overview;
   ProvincialModule _provincialModule = ProvincialModule.localDashboard;
   String? _spokeId;
+  StreamSubscription<User?>? _authSub;
 
   // Starts as a loading placeholder so the account's email never flashes
   // on screen before the Firestore displayName lookup resolves.
@@ -40,6 +42,23 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _loadDisplayName();
+    // Listen for auth state changes so that if the user's token expires,
+    // they are disabled, or signed out remotely, the app immediately
+    // navigates back to the login screen instead of failing silently.
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user == null && mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   /// Looks up the signed-in user's UID in the `users` collection
