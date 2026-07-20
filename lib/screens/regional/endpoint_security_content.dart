@@ -9,7 +9,9 @@ import '../../widgets/common.dart';
 /// showing every field instead of a quick status summary. Use Overview's
 /// "Seed Demo Data" button to populate this collection if it's empty.
 class EndpointSecurityContent extends StatelessWidget {
-  const EndpointSecurityContent({super.key});
+  final String? spokeId;
+
+  const EndpointSecurityContent({super.key, this.spokeId});
 
   @override
   Widget build(BuildContext context) {
@@ -20,14 +22,15 @@ class EndpointSecurityContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PageHeader(
+          PageHeader(
             title: 'Endpoint Security',
-            subtitle:
-                'Manage and monitor all registered agents across Region 4A.',
+            subtitle: spokeId == null 
+                ? 'Manage and monitor all registered agents across Region 4A.'
+                : 'Manage and monitor all registered agents for this provincial office.',
           ),
           const SizedBox(height: 20),
           StreamBuilder<List<WazuhAgent>>(
-            stream: repository.watchAgents(),
+            stream: repository.watchAgents(spokeId: spokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(

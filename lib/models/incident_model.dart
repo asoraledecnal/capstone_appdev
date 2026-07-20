@@ -26,6 +26,11 @@ class IncidentLog {
   final String severity; // Low | Medium | High | Critical
   final String heuristicRule;
   final String ticketStatus; // Open | Investigating | Resolved | Mitigated
+  final String description;
+  final String assignedTo;
+  final String sourceIp;
+  final String endpoint;
+  final String actionTaken;
 
   const IncidentLog({
     required this.id,
@@ -35,6 +40,11 @@ class IncidentLog {
     required this.severity,
     required this.heuristicRule,
     required this.ticketStatus,
+    this.description = '',
+    this.assignedTo = '',
+    this.sourceIp = '',
+    this.endpoint = '',
+    this.actionTaken = '',
   });
 
   static const List<String> alertTypes = [
@@ -78,10 +88,33 @@ class IncidentLog {
       spokeId: data['spoke_id'] as String? ?? '',
       timestamp: ts,
       alertType: data['alert_type'] as String? ?? '',
-      severity: data['severity'] as String? ?? 'Low',
+      // Normalize SCREAMING_CASE from old seed data to Title Case
+      severity: _toTitleCase(data['severity'] as String? ?? 'Low'),
       heuristicRule: data['heuristic_rule'] as String? ?? '',
-      ticketStatus: data['ticket_status'] as String? ?? 'Open',
+      // Normalize legacy status values to model's expected lifecycle values
+      ticketStatus: _normalizeStatus(data['ticket_status'] as String? ?? 'Open'),
+      description: data['description'] as String? ?? '',
+      assignedTo: data['assigned_to'] as String? ?? '',
+      sourceIp: data['source_ip'] as String? ?? '',
+      endpoint: data['endpoint'] as String? ?? '',
+      actionTaken: data['action_taken'] as String? ?? '',
     );
+  }
+
+  static String _toTitleCase(String s) {
+    if (s.isEmpty) return s;
+    final lower = s.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
+  }
+
+  static String _normalizeStatus(String s) {
+    switch (s.toUpperCase()) {
+      case 'OPEN': return 'Open';
+      case 'IN PROGRESS': return 'Investigating';
+      case 'RESOLVED': return 'Resolved';
+      case 'CLOSED': return 'Mitigated';
+      default: return _toTitleCase(s);
+    }
   }
 
   /// Note: the document ID (`id`) is never written back into the map — it's
@@ -94,6 +127,11 @@ class IncidentLog {
       'severity': severity,
       'heuristic_rule': heuristicRule,
       'ticket_status': ticketStatus,
+      'description': description,
+      'assigned_to': assignedTo,
+      'source_ip': sourceIp,
+      'endpoint': endpoint,
+      'action_taken': actionTaken,
     };
   }
 
@@ -104,6 +142,11 @@ class IncidentLog {
     String? severity,
     String? heuristicRule,
     String? ticketStatus,
+    String? description,
+    String? assignedTo,
+    String? sourceIp,
+    String? endpoint,
+    String? actionTaken,
   }) {
     return IncidentLog(
       id: id,
@@ -113,6 +156,11 @@ class IncidentLog {
       severity: severity ?? this.severity,
       heuristicRule: heuristicRule ?? this.heuristicRule,
       ticketStatus: ticketStatus ?? this.ticketStatus,
+      description: description ?? this.description,
+      assignedTo: assignedTo ?? this.assignedTo,
+      sourceIp: sourceIp ?? this.sourceIp,
+      endpoint: endpoint ?? this.endpoint,
+      actionTaken: actionTaken ?? this.actionTaken,
     );
   }
 }

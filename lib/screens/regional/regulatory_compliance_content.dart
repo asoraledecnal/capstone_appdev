@@ -5,7 +5,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
 class RegulatoryComplianceContent extends StatelessWidget {
-  const RegulatoryComplianceContent({super.key});
+  final String? spokeId;
+  const RegulatoryComplianceContent({super.key, this.spokeId});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +24,7 @@ class RegulatoryComplianceContent extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           StreamBuilder<List<ComplianceRecord>>(
-            stream: repository.watchRecords(),
+            stream: repository.watchRecords(spokeId: spokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(

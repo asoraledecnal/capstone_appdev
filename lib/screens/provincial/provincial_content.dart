@@ -6,31 +6,25 @@ import '../../services/wazuh_event_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
-/// Maps the tenant dropdown labels to their spoke_id, matching the
-/// SPOKE-01..05 records in the `spokes` collection.
-const Map<String, String> _tenantSpokeIds = {
-  'Batangas Regional Hub': 'SPOKE-03',
-  'Cavite Provincial Office': 'SPOKE-01',
-  'Laguna Provincial Office': 'SPOKE-02',
-  'Rizal Provincial Office': 'SPOKE-04',
-  'Quezon Provincial Office': 'SPOKE-05',
-};
+import '../../widgets/provincial_sidebar.dart';
 
-class ProvincialView extends StatefulWidget {
-  const ProvincialView({super.key});
+class ProvincialContent extends StatefulWidget {
+  final ProvincialModule module;
+  final String? spokeId;
+
+  const ProvincialContent({
+    super.key,
+    this.module = ProvincialModule.localDashboard,
+    this.spokeId,
+  });
 
   @override
-  State<ProvincialView> createState() => _ProvincialViewState();
+  State<ProvincialContent> createState() => _ProvincialContentState();
 }
 
-class _ProvincialViewState extends State<ProvincialView> {
+class _ProvincialContentState extends State<ProvincialContent> {
   final _agentRepository = WazuhAgentRepository();
   final _eventRepository = WazuhEventRepository();
-
-  final List<String> _tenants = _tenantSpokeIds.keys.toList();
-  late String _selectedTenant = _tenants.first;
-
-  String get _selectedSpokeId => _tenantSpokeIds[_selectedTenant]!;
 
   IconData _eventIcon(String type) {
     switch (type) {
@@ -56,6 +50,23 @@ class _ProvincialViewState extends State<ProvincialView> {
 
   @override
   Widget build(BuildContext context) {
+    switch (widget.module) {
+      case ProvincialModule.localDashboard:
+        return _buildLocalDashboard(context);
+      case ProvincialModule.endpointHealth:
+      case ProvincialModule.accessIdentities:
+      case ProvincialModule.incidentTickets:
+      case ProvincialModule.reports:
+        return const Center(
+          child: Text(
+            'Placeholder',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+        );
+    }
+  }
+
+  Widget _buildLocalDashboard(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -63,95 +74,20 @@ class _ProvincialViewState extends State<ProvincialView> {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              // Tenant selector, restyled as a small auto-width pill — same
-              // visual language as the "Sync with Batangas Hub" chip below
-              // (rounded, teal outline, no filled card background) instead
-              // of a full-width gray bordered box. A full-width card reads
-              // as its own separate section no matter where it's placed;
-              // an auto-width pill sitting right above the title reads as
-              // one small tag that belongs to the header.
-              final tenantDropdown = PopupMenuButton<String>(
-                color: AppColors.card,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: AppColors.cardBorder),
-                ),
-                offset: const Offset(0, 38),
-                onSelected: (t) => setState(() => _selectedTenant = t),
-                itemBuilder: (context) => [
-                  for (final t in _tenants)
-                    PopupMenuItem(
-                      value: t,
-                      child: Text(
-                        t,
-                        style: TextStyle(
-                          color: t == _selectedTenant
-                              ? AppColors.teal
-                              : AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                ],
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.teal),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 13, color: AppColors.teal),
-                      const SizedBox(width: 5),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.5),
-                        child: Text(
-                          _selectedTenant,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          style: const TextStyle(
-                              color: AppColors.teal,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12),
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      const Icon(
-                        Icons.keyboard_arrow_down,
-                        size: 14,
-                        color: AppColors.teal,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-
-              // Tenant pill sits directly above the title on its own —
-              // no refresh button anymore. Agent/event data already comes
-              // from live Firestore StreamBuilders (watchAgents/
-              // watchEvents), so a manual "refresh" control had no real
-              // effect; it was just calling setState(() {}) with nothing
-              // to actually re-fetch.
-              final titleBlock = Column(
+              const titleBlock = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Local Agent Dashboard',
+                  Text('Local Agent Dashboard',
                       style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 24,
                           fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  const Text(
+                  SizedBox(height: 4),
+                  Text(
                       'Tenant isolation mode: Viewing local telemetry only.',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 13)),
-                  const SizedBox(height: 10),
-                  tenantDropdown,
+                  SizedBox(height: 10),
                 ],
               );
               final hubBlock = Column(
@@ -171,7 +107,7 @@ class _ProvincialViewState extends State<ProvincialView> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            '$_selectedTenant is synced live with the '
+                            '${widget.spokeId} is synced live with the '
                             'Batangas Hub via Firestore — no manual sync '
                             'needed.',
                           ),
@@ -215,7 +151,7 @@ class _ProvincialViewState extends State<ProvincialView> {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: titleBlock),
+                  const Expanded(child: titleBlock),
                   hubBlock,
                 ],
               );
@@ -226,11 +162,11 @@ class _ProvincialViewState extends State<ProvincialView> {
           // Stat cards — computed live from Firestore, filtered to the
           // selected tenant's spoke_id.
           StreamBuilder<List<WazuhAgent>>(
-            stream: _agentRepository.watchAgents(spokeId: _selectedSpokeId),
+            stream: _agentRepository.watchAgents(spokeId: widget.spokeId),
             builder: (context, agentSnap) {
               return StreamBuilder<List<WazuhEvent>>(
                 stream: _eventRepository.watchEvents(
-                    spokeId: _selectedSpokeId,
+                    spokeId: widget.spokeId,
                     limit: 1000), // Get enough events to count stats
                 builder: (context, eventSnap) {
                   final agents = agentSnap.data ?? const [];
@@ -295,7 +231,7 @@ class _ProvincialViewState extends State<ProvincialView> {
           // Event table — filtered to the selected tenant's spoke_id, live.
           StreamBuilder<List<WazuhEvent>>(
             stream: _eventRepository.watchEvents(
-                limit: 20, spokeId: _selectedSpokeId),
+                limit: 20, spokeId: widget.spokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 // A composite index is required for where + orderBy on

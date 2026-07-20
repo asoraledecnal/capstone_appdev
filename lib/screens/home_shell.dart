@@ -13,7 +13,10 @@ import 'regional/threat_intelligence_content.dart';
 import 'regional/vulnerabilities_content.dart';
 import 'regional/regulatory_compliance_content.dart';
 import 'regional/file_integrity_content.dart';
-import 'provincial/provincial_view.dart';
+import 'provincial/provincial_content.dart';
+import 'provincial/access_identities_content.dart';
+import 'provincial/provincial_reports_content.dart';
+import '../widgets/provincial_sidebar.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -26,6 +29,8 @@ class _HomeShellState extends State<HomeShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   ViewMode _mode = ViewMode.regional;
   RegionalModule _module = RegionalModule.overview;
+  ProvincialModule _provincialModule = ProvincialModule.localDashboard;
+  String? _spokeId;
 
   // Starts as a loading placeholder so the account's email never flashes
   // on screen before the Firestore displayName lookup resolves.
@@ -88,6 +93,28 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  Widget _provincialContent() {
+    // Note: When no spoke is selected in Provincial Mode, we default to SPOKE-01
+    // (as enforced in the TopBar onModeChanged logic).
+    final currentSpoke = _spokeId ?? 'SPOKE-01';
+
+    switch (_provincialModule) {
+      case ProvincialModule.localDashboard:
+        return ProvincialContent(
+          module: ProvincialModule.localDashboard,
+          spokeId: currentSpoke,
+        );
+      case ProvincialModule.endpointHealth:
+        return EndpointSecurityContent(spokeId: currentSpoke);
+      case ProvincialModule.incidentTickets:
+        return IncidentTrackerContent(spokeId: currentSpoke);
+      case ProvincialModule.accessIdentities:
+        return AccessIdentitiesContent(spokeId: currentSpoke);
+      case ProvincialModule.reports:
+        return ProvincialReportsContent(spokeId: currentSpoke);
+    }
+  }
+
   void _selectModule(RegionalModule m) {
     setState(() => _module = m);
     // On phones the sidebar lives in a Drawer, so close it after picking
@@ -97,10 +124,17 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  void _selectProvincialModule(ProvincialModule m) {
+    setState(() => _provincialModule = m);
+    if (!context.isWide) {
+      _scaffoldKey.currentState?.closeDrawer();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = context.isWide;
-    final showDrawer = !wide && _mode == ViewMode.regional;
+    final showDrawer = !wide; // Always show drawer on mobile for both views
 
     return Scaffold(
       key: _scaffoldKey,
@@ -110,7 +144,22 @@ class _HomeShellState extends State<HomeShell> {
               backgroundColor: AppColors.panelDark,
               width: 260,
               child: SafeArea(
-                child: Sidebar(selected: _module, onSelect: _selectModule),
+                child: _mode == ViewMode.regional
+                    ? Sidebar(
+                        selected: _module,
+                        onSelect: _selectModule,
+                        onSwitchMode: () => setState(() {
+                          _mode = ViewMode.provincial;
+                          _spokeId ??= 'SPOKE-01';
+                        }),
+                      )
+                    : ProvincialSidebar(
+                        selected: _provincialModule,
+                        onSelect: _selectProvincialModule,
+                        currentSpoke: _spokeId ?? 'SPOKE-01',
+                        onSpokeChanged: (spoke) => setState(() => _spokeId = spoke),
+                        onSwitchMode: () => setState(() => _mode = ViewMode.regional),
+                      ),
               ),
             )
           : null,
@@ -118,7 +167,6 @@ class _HomeShellState extends State<HomeShell> {
         mode: _mode,
         showMenuButton: showDrawer,
         userLabel: _userLabel,
-        onModeChanged: (m) => setState(() => _mode = m),
         onLogout: () async {
           await FirebaseAuth.instance.signOut();
           if (!context.mounted) return;
@@ -135,7 +183,14 @@ class _HomeShellState extends State<HomeShell> {
                     SizedBox(
                       width: 240,
                       child:
-                          Sidebar(selected: _module, onSelect: _selectModule),
+                          Sidebar(
+                            selected: _module,
+                            onSelect: _selectModule,
+                            onSwitchMode: () => setState(() {
+                              _mode = ViewMode.provincial;
+                              _spokeId ??= 'SPOKE-01';
+                            }),
+                          ),
                     ),
                     const VerticalDivider(
                         width: 1, color: AppColors.sidebarBorder),
@@ -143,7 +198,25 @@ class _HomeShellState extends State<HomeShell> {
                   ],
                 )
               : _regionalContent())
-          : const ProvincialView(),
+          : (wide
+              ? Row(
+                  children: [
+                    SizedBox(
+                      width: 240,
+                      child: ProvincialSidebar(
+                        selected: _provincialModule,
+                        onSelect: _selectProvincialModule,
+                        currentSpoke: _spokeId ?? 'SPOKE-01',
+                        onSpokeChanged: (spoke) => setState(() => _spokeId = spoke),
+                        onSwitchMode: () => setState(() => _mode = ViewMode.regional),
+                      ),
+                    ),
+                    const VerticalDivider(
+                        width: 1, color: AppColors.sidebarBorder),
+                    Expanded(child: _provincialContent()),
+                  ],
+                )
+              : _provincialContent()),
     );
   }
 }

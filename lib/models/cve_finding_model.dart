@@ -35,7 +35,7 @@ class CveFinding {
       id: doc.id,
       cveId: data['cve_id'] as String? ?? '',
       severity: data['severity'] as String? ?? 'HIGH',
-      cvssScore: data['cvss_score'] as String? ?? '',
+      cvssScore: data['cvss_score']?.toString() ?? '',
       affectedPackage: data['affected_package'] as String? ?? '',
       agentName: data['agent_name'] as String? ?? '',
     );

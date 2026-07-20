@@ -3,23 +3,55 @@ import '../theme/app_colors.dart';
 
 enum ViewMode { regional, provincial }
 
+class _ModeIndicator extends StatelessWidget {
+  final ViewMode mode;
+  const _ModeIndicator({required this.mode});
+
+  @override
+  Widget build(BuildContext context) {
+    final isRegional = mode == ViewMode.regional;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.teal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isRegional ? Icons.grid_view_rounded : Icons.person_outline,
+            size: 14,
+            color: AppColors.teal,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isRegional ? 'Regional View' : 'Provincial View',
+            style: const TextStyle(
+              color: AppColors.teal,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class TopBar extends StatelessWidget implements PreferredSizeWidget {
   final ViewMode mode;
-  final ValueChanged<ViewMode> onModeChanged;
-  final VoidCallback onLogout;
   final bool showMenuButton;
-
-  /// The currently signed-in account (usually the Firebase Auth email).
-  /// Falls back to 'User' if no session is found.
   final String userLabel;
+  final VoidCallback onLogout;
 
   const TopBar({
     super.key,
     required this.mode,
-    required this.onModeChanged,
+    required this.showMenuButton,
+    required this.userLabel,
     required this.onLogout,
-    this.showMenuButton = false,
-    this.userLabel = 'User',
   });
 
   @override
@@ -103,20 +135,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         _brand(),
         const Spacer(),
-        _ToggleButton(
-          label: 'Regional View',
-          icon: Icons.grid_view_rounded,
-          selected: mode == ViewMode.regional,
-          onTap: () => onModeChanged(ViewMode.regional),
-        ),
-        const SizedBox(width: 8),
-        _ToggleButton(
-          label: 'Provincial View',
-          icon: Icons.person_outline,
-          selected: mode == ViewMode.provincial,
-          onTap: () => onModeChanged(ViewMode.provincial),
-        ),
-        const SizedBox(width: 8),
+        _ModeIndicator(mode: mode),
+        const SizedBox(width: 16),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 160),
           child: _PillButton(
@@ -125,7 +145,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
             onTap: () {},
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         _PillButton(label: 'Logout', icon: Icons.logout, onTap: onLogout),
       ],
     );
@@ -145,8 +165,8 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 4),
         Expanded(child: _brand(showSubtitle: false)),
         const SizedBox(width: 8),
-        _ViewDropdown(mode: mode, onModeChanged: onModeChanged),
-        const SizedBox(width: 4),
+        _ModeIndicator(mode: mode),
+        const SizedBox(width: 8),
         PopupMenuButton<String>(
           padding: EdgeInsets.zero,
           color: AppColors.card,
@@ -192,122 +212,21 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-class _ViewDropdown extends StatelessWidget {
-  final ViewMode mode;
-  final ValueChanged<ViewMode> onModeChanged;
-
-  const _ViewDropdown({required this.mode, required this.onModeChanged});
-
-  String _label(ViewMode m) =>
-      m == ViewMode.regional ? 'Regional View' : 'Provincial View';
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<ViewMode>(
-      color: AppColors.card,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppColors.cardBorder),
-      ),
-      offset: const Offset(0, 44),
-      onSelected: onModeChanged,
-      itemBuilder: (context) => [
-        for (final m in ViewMode.values)
-          PopupMenuItem(
-            value: m,
-            child: Row(
-              children: [
-                Icon(
-                  m == ViewMode.regional
-                      ? Icons.grid_view_rounded
-                      : Icons.person_outline,
-                  size: 15,
-                  color: m == mode ? AppColors.teal : AppColors.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _label(m),
-                  style: TextStyle(
-                    color: m == mode ? AppColors.teal : AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.teal),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _label(mode),
-              style: const TextStyle(
-                color: AppColors.teal,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.keyboard_arrow_down,
-              size: 16,
-              color: AppColors.teal,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ToggleButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ToggleButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _PillButton(
-      label: label,
-      icon: icon,
-      onTap: onTap,
-      filled: selected,
-    );
-  }
-}
-
 class _PillButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-  final bool filled;
 
   const _PillButton({
     required this.label,
     required this.icon,
     required this.onTap,
-    this.filled = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: filled ? AppColors.teal : Colors.transparent,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -317,7 +236,7 @@ class _PillButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: filled ? AppColors.teal : AppColors.cardBorder,
+              color: AppColors.cardBorder,
             ),
           ),
           child: Row(
@@ -325,17 +244,17 @@ class _PillButton extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 15,
-                  color: filled ? Colors.black : AppColors.textSecondary),
+                  color: AppColors.textSecondary),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: filled ? Colors.black : AppColors.textSecondary,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),

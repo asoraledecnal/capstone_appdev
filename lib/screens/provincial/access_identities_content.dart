@@ -1,0 +1,180 @@
+import 'package:flutter/material.dart';
+import '../../models/wazuh_event_model.dart';
+import '../../services/wazuh_event_repository.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/common.dart';
+
+class AccessIdentitiesContent extends StatelessWidget {
+  final String? spokeId;
+
+  const AccessIdentitiesContent({super.key, this.spokeId});
+
+  @override
+  Widget build(BuildContext context) {
+    final repository = WazuhEventRepository();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const PageHeader(
+            title: 'Access & Identities',
+            subtitle: 'Monitor login attempts, brute force attacks, and authentication events for this office.',
+          ),
+          const SizedBox(height: 20),
+          StreamBuilder<List<WazuhEvent>>(
+            stream: repository.watchEvents(spokeId: spokeId, limit: 100),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return DashCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Failed to load events: ${snapshot.error}',
+                      style: const TextStyle(color: AppColors.red),
+                    ),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+
+              // Filter for authentication-related events
+              final authEvents = snapshot.data!.where((e) => 
+                e.type == 'Login Attempt' || 
+                e.type == 'Brute Force' ||
+                e.type == 'Unauthorized Access' ||
+                e.type == 'Windows Logon' ||
+                e.type == 'Privilege Escalation'
+              ).toList();
+
+              if (authEvents.isEmpty) {
+                return const DashCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'No authentication events found for this office.',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return DashCard(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingTextStyle: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('Timestamp')),
+                      DataColumn(label: Text('Username')),
+                      DataColumn(label: Text('Source IP')),
+                      DataColumn(label: Text('Endpoint')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Raw Log')),
+                    ],
+                    rows: authEvents.map((event) {
+                      // Naive extraction for demo purposes
+                      String username = 'unknown';
+                      String ip = 'unknown';
+                      String status = 'Failed';
+
+                      final desc = event.description.toLowerCase();
+                      if (desc.contains('successful') || desc.contains('success')) {
+                        status = 'Success';
+                      }
+
+                      // Try to match "user 'root'" or "user name: admin"
+                      final userMatch = RegExp(r"user '?([a-zA-Z0-9_\-\.]+)'?").firstMatch(event.description);
+                      if (userMatch != null) {
+                        username = userMatch.group(1) ?? 'unknown';
+                      } else if (desc.contains('root')) {
+                        username = 'root';
+                      }
+
+                      // Try to match IP
+                      final ipMatch = RegExp(r"([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})").firstMatch(event.description);
+                      if (ipMatch != null) {
+                        ip = ipMatch.group(1) ?? 'unknown';
+                      }
+
+                      return DataRow(cells: [
+                        DataCell(Text(
+                          _formatDate(event.timestamp),
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        )),
+                        DataCell(Text(
+                          username,
+                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                        )),
+                        DataCell(Text(
+                          ip,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        )),
+                        DataCell(Text(
+                          event.endpoint.isEmpty ? event.agent : event.endpoint,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        )),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: status == 'Success' 
+                                  ? AppColors.teal.withValues(alpha: 0.1)
+                                  : AppColors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: status == 'Success'
+                                    ? AppColors.teal.withValues(alpha: 0.3)
+                                    : AppColors.red.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Text(
+                              status,
+                              style: TextStyle(
+                                color: status == 'Success' ? AppColors.teal : AppColors.red,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          SizedBox(
+                            width: 300,
+                            child: Text(
+                              event.description,
+                              style: const TextStyle(color: AppColors.textMuted),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
+}

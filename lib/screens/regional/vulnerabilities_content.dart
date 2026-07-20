@@ -5,7 +5,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
 class VulnerabilitiesContent extends StatefulWidget {
-  const VulnerabilitiesContent({super.key});
+  final String? spokeId;
+  const VulnerabilitiesContent({super.key, this.spokeId});
 
   @override
   State<VulnerabilitiesContent> createState() =>
@@ -31,7 +32,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           StreamBuilder<List<CveFinding>>(
-            stream: _repository.watchCves(),
+            stream: _repository.watchCves(spokeId: widget.spokeId),
             builder: (context, snapshot) {
               final cves = snapshot.data ?? const [];
               final criticalCount =
@@ -56,7 +57,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
           ),
           const SizedBox(height: 20),
           StreamBuilder<List<CveFinding>>(
-            stream: _repository.watchCves(),
+            stream: _repository.watchCves(spokeId: widget.spokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(

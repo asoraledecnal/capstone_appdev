@@ -11,8 +11,21 @@ class IncidentRepository {
   CollectionReference<Map<String, dynamic>> get _incidentsRef =>
       _firestore.collection('incidents');
 
-  Stream<List<IncidentLog>> watchIncidents() {
-    return _incidentsRef
+  Stream<List<IncidentLog>> watchIncidents({String? spokeId}) {
+    Query<Map<String, dynamic>> query = _incidentsRef;
+    if (spokeId != null && spokeId.isNotEmpty) {
+      return query
+          .where('spoke_id', isEqualTo: spokeId)
+          .snapshots()
+          .map((snapshot) {
+            final incidents = snapshot.docs
+                .map((doc) => IncidentLog.fromFirestore(doc))
+                .toList();
+            incidents.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+            return incidents;
+          });
+    }
+    return query
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs

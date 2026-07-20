@@ -10,7 +10,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
 class OverviewContent extends StatefulWidget {
-  const OverviewContent({super.key});
+  final String? spokeId;
+  const OverviewContent({super.key, this.spokeId});
 
   @override
   State<OverviewContent> createState() => _OverviewContentState();
@@ -133,7 +134,7 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _agentStatusCard() {
     return DashCard(
       child: StreamBuilder<List<WazuhAgent>>(
-        stream: _agentRepository.watchAgents(),
+        stream: _agentRepository.watchAgents(spokeId: widget.spokeId),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(
@@ -360,7 +361,7 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _eventEvolutionCard() {
     return DashCard(
       child: StreamBuilder<List<WazuhEvent>>(
-        stream: _eventRepository.watchEvents(limit: 17),
+        stream: _eventRepository.watchEvents(limit: 17, spokeId: widget.spokeId),
         builder: (context, snapshot) {
           final docs = snapshot.data ?? const [];
           final events = docs.reversed.toList();
@@ -552,9 +553,11 @@ class _OverviewContentState extends State<OverviewContent> {
         child: Row(
           children: [
             SizedBox(
-              width: 90,
+              width: 130,
               child: Text(
                 t.tacticName,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: const TextStyle(
                     color: AppColors.textSecondary, fontSize: 11.5),
               ),
@@ -660,7 +663,7 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget _eventStreamCard(BuildContext context) {
     return DashCard(
       child: StreamBuilder<List<WazuhEvent>>(
-        stream: _eventRepository.watchEvents(limit: 100),
+        stream: _eventRepository.watchEvents(limit: 100, spokeId: widget.spokeId),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(

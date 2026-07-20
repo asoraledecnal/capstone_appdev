@@ -14,7 +14,8 @@ const _spokeIds = ['SPOKE-01', 'SPOKE-02', 'SPOKE-03', 'SPOKE-04', 'SPOKE-05'];
 const _previewLimit = 5;
 
 class IncidentTrackerContent extends StatefulWidget {
-  const IncidentTrackerContent({super.key});
+  final String? spokeId;
+  const IncidentTrackerContent({super.key, this.spokeId});
 
   @override
   State<IncidentTrackerContent> createState() => _IncidentTrackerContentState();
@@ -55,7 +56,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           const SizedBox(height: 20),
           DashCard(
             child: StreamBuilder<List<IncidentLog>>(
-              stream: _repository.watchIncidents(),
+              stream: _repository.watchIncidents(spokeId: widget.spokeId),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Padding(

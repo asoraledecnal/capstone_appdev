@@ -5,7 +5,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
 class ThreatIntelligenceContent extends StatefulWidget {
-  const ThreatIntelligenceContent({super.key});
+  final String? spokeId;
+  const ThreatIntelligenceContent({super.key, this.spokeId});
 
   @override
   State<ThreatIntelligenceContent> createState() =>
@@ -54,7 +55,7 @@ class _ThreatIntelligenceContentState
             ),
           const SizedBox(height: 20),
           StreamBuilder<List<IocFinding>>(
-            stream: _repository.watchIocs(),
+            stream: _repository.watchIocs(spokeId: widget.spokeId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return DashCard(
@@ -134,6 +135,10 @@ class _ThreatIntelligenceContentState
                                 Alignment.center,
                                 Alignment.center,
                               ],
+                              onRowTap: [
+                                for (final i in iocs)
+                                  () => _showIocDetails(context, i)
+                              ],
                               rows: [
                                 for (final i in iocs)
                                   [
@@ -162,63 +167,194 @@ class _ThreatIntelligenceContentState
     ));
   }
 
+  void _showIocDetails(BuildContext context, IocFinding ioc) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.panelDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          ioc.indicator,
+                          style: const TextStyle(
+                            color: AppColors.red,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textSecondary),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  StatusBadge(label: ioc.type, color: AppColors.textSecondary),
+                  const SizedBox(height: 24),
+                  const Text('THREAT ACTOR / CAMPAIGN',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Text(ioc.threatActor,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 24),
+                  const Text('AFFECTED AGENT',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.dns_outlined,
+                          size: 16, color: AppColors.teal),
+                      const SizedBox(width: 8),
+                      Text(ioc.agentName,
+                          style: const TextStyle(
+                              color: AppColors.textPrimary, fontSize: 14)),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('LAST SEEN',
+                      style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time,
+                          size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: 8),
+                      Text(_formatTime(ioc.lastSeen),
+                          style: const TextStyle(
+                              color: AppColors.textPrimary, fontSize: 14)),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.block),
+                      label: const Text('Block Indicator via API'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.red,
+                        side: const BorderSide(color: AppColors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Indicator ${ioc.indicator} blocked on all firewalls.'),
+                            backgroundColor: AppColors.teal,
+                          ),
+                        );
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   /// Mobile-width replacement for the IoC table: one card per indicator so
   /// nothing needs a sideways scroll to be seen in full.
   Widget _iocCardList(List<IocFinding> iocs) {
     return Column(
       children: [
         for (final i in iocs)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Material(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(_typeIcon(i.type), size: 15, color: AppColors.red),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        i.indicator,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _showIocDetails(context, i),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.cardBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(_typeIcon(i.type), size: 15, color: AppColors.red),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              i.indicator,
+                              style: const TextStyle(
+                                color: AppColors.red,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          StatusBadge(label: i.type, color: AppColors.textSecondary),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        i.threatActor,
                         style: const TextStyle(
-                          color: AppColors.red,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 13.5,
+                          fontSize: 14,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    StatusBadge(label: i.type, color: AppColors.textSecondary),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  i.threatActor,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 6,
+                        children: [
+                          _metaChip(Icons.dns_outlined, i.agentName, AppColors.teal),
+                          _metaChip(Icons.access_time, _formatTime(i.lastSeen),
+                              AppColors.textMuted),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 14,
-                  runSpacing: 6,
-                  children: [
-                    _metaChip(Icons.dns_outlined, i.agentName, AppColors.teal),
-                    _metaChip(Icons.access_time, _formatTime(i.lastSeen),
-                        AppColors.textMuted),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
       ],

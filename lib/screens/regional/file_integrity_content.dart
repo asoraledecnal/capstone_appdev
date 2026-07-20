@@ -4,9 +4,15 @@ import '../../services/file_integrity_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common.dart';
 
-class FileIntegrityContent extends StatelessWidget {
-  const FileIntegrityContent({super.key});
+class FileIntegrityContent extends StatefulWidget {
+  final String? spokeId;
+  const FileIntegrityContent({super.key, this.spokeId});
 
+  @override
+  State<FileIntegrityContent> createState() => _FileIntegrityContentState();
+}
+
+class _FileIntegrityContentState extends State<FileIntegrityContent> {
   String _formatTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
@@ -39,7 +45,7 @@ class FileIntegrityContent extends StatelessWidget {
               final narrow = constraints.maxWidth < 640;
               return DashCard(
                 child: StreamBuilder<List<FileIntegrityEvent>>(
-                  stream: repository.watchEvents(),
+                  stream: repository.watchEvents(spokeId: widget.spokeId),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Padding(

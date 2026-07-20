@@ -14,8 +14,14 @@ enum RegionalModule {
 class Sidebar extends StatelessWidget {
   final RegionalModule selected;
   final ValueChanged<RegionalModule> onSelect;
+  final VoidCallback? onSwitchMode;
 
-  const Sidebar({super.key, required this.selected, required this.onSelect});
+  const Sidebar({
+    super.key,
+    required this.selected,
+    required this.onSelect,
+    this.onSwitchMode,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +119,18 @@ class Sidebar extends StatelessWidget {
               ),
             ),
           ),
+          if (onSwitchMode != null) ...[
+            const Divider(height: 1, color: AppColors.sidebarBorder),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: _NavItem(
+                icon: Icons.person_outline,
+                label: 'Switch to Provincial',
+                selected: false,
+                onTap: onSwitchMode!,
+              ),
+            ),
+          ],
           // Footer stays pinned outside the scroll area. Shows build/version
           // info instead of the old tagline — useful during grading/demo to
           // confirm which build is running, and reads as a normal footer
