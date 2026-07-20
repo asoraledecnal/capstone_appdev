@@ -112,7 +112,7 @@ class AccessIdentitiesContent extends StatelessWidget {
                       }
 
                       return DataRow(
-                        onSelectChanged: (_) => _showEventDetails(context, event),
+                        onSelectChanged: (_) => _showEventDetails(context, event, username, ip, status),
                         cells: [
                         DataCell(Text(
                           _formatDate(event.timestamp),
@@ -181,7 +181,7 @@ class AccessIdentitiesContent extends StatelessWidget {
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
-  void _showEventDetails(BuildContext context, WazuhEvent event) {
+  void _showEventDetails(BuildContext context, WazuhEvent event, String username, String ip, String status) {
     showDialog(
       context: context,
       builder: (context) {
@@ -218,11 +218,13 @@ class AccessIdentitiesContent extends StatelessWidget {
                 const SizedBox(height: 24),
                 _detailRow('Endpoint', event.endpoint.isEmpty ? event.agent : event.endpoint),
                 _detailRow('Time', _formatDate(event.timestamp)),
-                _detailRow('Severity', event.severity,
-                    color: AppColors.severityColor(event.severity)),
+                _detailRow('Username', username),
+                _detailRow('Status', status, 
+                    color: status == 'Success' ? AppColors.teal : AppColors.red),
+                _detailRow('Source IP', ip),
+                _detailRow('Severity', event.severity.isNotEmpty ? event.severity : 'Medium',
+                    color: AppColors.severityColor(event.severity.isNotEmpty ? event.severity : 'Medium')),
                 _detailRow('Rule Level', 'Level ${event.level}'),
-                _detailRow('Source IP', event.sourceIp),
-                _detailRow('Action Taken', event.action),
                 const SizedBox(height: 16),
                 const Text('Full Description:',
                     style: TextStyle(
