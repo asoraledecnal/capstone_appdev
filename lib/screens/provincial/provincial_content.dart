@@ -183,13 +183,21 @@ class _ProvincialContentState extends State<ProvincialContent> {
                     builder: (context, constraints) {
                       final stats = [
                         _statCard('ACTIVE ENDPOINTS', '$activeEndpoints',
-                            Icons.check_circle_outline, AppColors.teal),
+                            Icons.check_circle_outline, AppColors.teal, onTap: () {
+                          _showAgentsDialog(context, agents.where((a) => a.active).toList(), 'Active Endpoints');
+                        }),
                         _statCard('TOTAL ENDPOINTS', '$totalEndpoints',
-                            Icons.dns_outlined, AppColors.textSecondary),
+                            Icons.dns_outlined, AppColors.textSecondary, onTap: () {
+                          _showAgentsDialog(context, agents, 'Total Endpoints');
+                        }),
                         _statCard('CRITICAL ALERTS', '$criticalAlerts',
-                            Icons.shield_outlined, AppColors.red),
+                            Icons.shield_outlined, AppColors.red, onTap: () {
+                          _showAllEventsDialog(context, events.where((e) => e.severity == 'High').toList(), title: 'Critical Alerts');
+                        }),
                         _statCard('HIGH PRIORITY', '$highPriority',
-                            Icons.warning_amber_outlined, AppColors.orange),
+                            Icons.warning_amber_outlined, AppColors.orange, onTap: () {
+                          _showAllEventsDialog(context, events.where((e) => e.severity == 'Medium').toList(), title: 'High Priority Alerts');
+                        }),
                       ];
                       // 4-across on wide, 2x2 grid on tablets/phone-landscape,
                       // 1-per-row on narrow phone-portrait widths.
@@ -397,7 +405,7 @@ class _ProvincialContentState extends State<ProvincialContent> {
     );
   }
 
-  void _showAllEventsDialog(BuildContext context, List<WazuhEvent> allEvents) {
+  void _showAllEventsDialog(BuildContext context, List<WazuhEvent> allEvents, {String title = 'Event History'}) {
     showDialog(
       context: context,
       builder: (context) {
@@ -407,8 +415,8 @@ class _ProvincialContentState extends State<ProvincialContent> {
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: AppColors.cardBorder),
           ),
-          title: const Text('Event History',
-              style: TextStyle(
+          title: Text(title,
+              style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold)),
@@ -506,8 +514,8 @@ class _ProvincialContentState extends State<ProvincialContent> {
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon, Color color) {
-    return DashCard(
+  Widget _statCard(String label, String value, IconData icon, Color color, {VoidCallback? onTap}) {
+    final content = DashCard(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -528,6 +536,59 @@ class _ProvincialContentState extends State<ProvincialContent> {
           Icon(icon, color: color, size: 22),
         ],
       ),
+    );
+
+    if (onTap == null) return content;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: content,
+      ),
+    );
+  }
+
+  void _showAgentsDialog(BuildContext context, List<WazuhAgent> agents, String title) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.cardBorder),
+          ),
+          title: Text(title,
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: 500,
+            height: 400,
+            child: agents.isEmpty
+                ? const Center(child: Text('No agents found.', style: TextStyle(color: AppColors.textSecondary)))
+                : ListView.builder(
+                    itemCount: agents.length,
+                    itemBuilder: (context, i) {
+                      final a = agents[i];
+                      return ListTile(
+                        leading: Icon(Icons.circle, size: 12, color: a.active ? AppColors.teal : AppColors.red),
+                        title: Text(a.name, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                        subtitle: Text(a.ip, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        trailing: Text(a.active ? 'ACTIVE' : 'INACTIVE', style: TextStyle(color: a.active ? AppColors.teal : AppColors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ],
+        );
+      },
     );
   }
 

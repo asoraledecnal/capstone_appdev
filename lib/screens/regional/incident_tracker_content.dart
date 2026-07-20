@@ -159,7 +159,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
           for (final log in logs)
             [
               CellText(log.id, color: AppColors.teal, weight: FontWeight.w600),
-              CellText(log.spokeId, color: AppColors.textSecondary),
+              CellText(_formatSpoke(log.spokeId), color: AppColors.textSecondary),
               CellText(log.alertType),
               Align(
                 alignment: Alignment.centerLeft,
@@ -198,6 +198,9 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                 ],
               ),
             ],
+        ],
+        onRowTap: [
+          for (final log in logs) () => _showIncidentForm(context, existing: log),
         ],
       ),
     );
@@ -301,7 +304,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                   spacing: 14,
                   runSpacing: 6,
                   children: [
-                    _metaChip(Icons.dns_outlined, log.spokeId, AppColors.teal),
+                    _metaChip(Icons.dns_outlined, _formatSpoke(log.spokeId), AppColors.teal),
                     _metaChip(Icons.access_time,
                         _formatTimestamp(log.timestamp), AppColors.textMuted),
                   ],
@@ -342,6 +345,17 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
   String _formatTimestamp(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  String _formatSpoke(String spokeId) {
+    const map = {
+      'SPOKE-01': 'Rizal',
+      'SPOKE-02': 'Laguna',
+      'SPOKE-03': 'Batangas',
+      'SPOKE-04': 'Quezon',
+      'SPOKE-05': 'Cavite',
+    };
+    return map[spokeId] ?? spokeId;
   }
 
   Future<void> _confirmDelete(BuildContext context, IncidentLog log) async {
@@ -524,7 +538,7 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
                   spacing: 10,
                   runSpacing: 6,
                   children: [
-                    _metaChip(Icons.dns_outlined, log.spokeId, AppColors.teal),
+                    _metaChip(Icons.dns_outlined, _formatSpoke(log.spokeId), AppColors.teal),
                     _metaChip(Icons.access_time,
                         _formatTimestamp(log.timestamp), AppColors.textMuted),
                     _metaChip(Icons.flag_outlined, log.ticketStatus,
@@ -625,6 +639,13 @@ class _IncidentFormDialogState extends State<_IncidentFormDialog> {
     super.dispose();
   }
 
+  List<String> _ensureIncludes(List<String> options, String value) {
+    if (value.isNotEmpty && !options.contains(value)) {
+      return [...options, value];
+    }
+    return options;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
@@ -659,19 +680,19 @@ class _IncidentFormDialogState extends State<_IncidentFormDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _dropdown('Spoke', _spokeId, _spokeIds,
+                  _dropdown('Spoke', _spokeId, _ensureIncludes(_spokeIds, _spokeId),
                       (v) => setState(() => _spokeId = v!)),
                   const SizedBox(height: 14),
-                  _dropdown('Alert Type', _alertType, IncidentLog.alertTypes,
+                  _dropdown('Alert Type', _alertType, _ensureIncludes(IncidentLog.alertTypes, _alertType),
                       (v) => setState(() => _alertType = v!)),
                   const SizedBox(height: 14),
-                  _dropdown('Severity', _severity, IncidentLog.severities,
+                  _dropdown('Severity', _severity, _ensureIncludes(IncidentLog.severities, _severity),
                       (v) => setState(() => _severity = v!)),
                   const SizedBox(height: 14),
                   _dropdown(
                       'Ticket Status',
                       _ticketStatus,
-                      IncidentLog.ticketStatuses,
+                      _ensureIncludes(IncidentLog.ticketStatuses, _ticketStatus),
                       (v) => setState(() => _ticketStatus = v!)),
                   const SizedBox(height: 14),
                   TextFormField(

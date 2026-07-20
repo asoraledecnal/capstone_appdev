@@ -73,6 +73,7 @@ class AccessIdentitiesContent extends StatelessWidget {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
+                    showCheckboxColumn: false,
                     headingTextStyle: const TextStyle(
                       color: AppColors.textMuted,
                       fontWeight: FontWeight.bold,
@@ -110,7 +111,9 @@ class AccessIdentitiesContent extends StatelessWidget {
                         ip = ipMatch.group(1) ?? 'unknown';
                       }
 
-                      return DataRow(cells: [
+                      return DataRow(
+                        onSelectChanged: (_) => _showEventDetails(context, event),
+                        cells: [
                         DataCell(Text(
                           _formatDate(event.timestamp),
                           style: const TextStyle(color: AppColors.textPrimary),
@@ -176,5 +179,101 @@ class AccessIdentitiesContent extends StatelessWidget {
   String _formatDate(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
+
+  void _showEventDetails(BuildContext context, WazuhEvent event) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: AppColors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.cardBorder),
+          ),
+          child: Container(
+            width: 400,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Event Details',
+                        style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          color: AppColors.textSecondary, size: 20),
+                      onPressed: () => Navigator.of(context).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _detailRow('Endpoint', event.endpoint.isEmpty ? event.agent : event.endpoint),
+                _detailRow('Time', _formatDate(event.timestamp)),
+                _detailRow('Severity', event.severity,
+                    color: AppColors.severityColor(event.severity)),
+                _detailRow('Rule Level', 'Level ${event.level}'),
+                _detailRow('Source IP', event.sourceIp),
+                _detailRow('Action Taken', event.action),
+                const SizedBox(height: 16),
+                const Text('Full Description:',
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.cardBorder),
+                  ),
+                  child: Text(
+                    event.description,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label,
+                style: const TextStyle(
+                    color: AppColors.textMuted, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                  color: color ?? AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

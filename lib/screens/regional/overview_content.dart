@@ -86,13 +86,14 @@ class _OverviewContentState extends State<OverviewContent> {
                   ],
                 );
               }
-              return IntrinsicHeight(
+              return SizedBox(
+                height: 500,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(flex: 4, child: _agentStatusCard()),
                     const SizedBox(width: 16),
-                    Expanded(flex: 7, child: _eventEvolutionCard()),
+                    Expanded(flex: 7, child: _eventEvolutionCard(expandChart: true)),
                   ],
                 ),
               );
@@ -111,15 +112,13 @@ class _OverviewContentState extends State<OverviewContent> {
                   ],
                 );
               }
-              return IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(flex: 4, child: _mitreCard()),
-                    const SizedBox(width: 16),
-                    Expanded(flex: 7, child: _eventStreamCard(context)),
-                  ],
-                ),
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 4, child: _mitreCard()),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 7, child: _eventStreamCard(context)),
+                ],
               );
             },
           ),
@@ -358,7 +357,7 @@ class _OverviewContentState extends State<OverviewContent> {
   // ---------------------------------------------------------------------
   // Event evolution chart — derived from the most recent wazuh_events
   // ---------------------------------------------------------------------
-  Widget _eventEvolutionCard() {
+  Widget _eventEvolutionCard({bool expandChart = false}) {
     return DashCard(
       child: StreamBuilder<List<WazuhEvent>>(
         stream: _eventRepository.watchEvents(limit: 17, spokeId: widget.spokeId),
@@ -387,48 +386,80 @@ class _OverviewContentState extends State<OverviewContent> {
                 ],
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: 220,
-                child: spots.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No event data yet.',
-                          style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12),
-                        ),
-                      )
-                    : LineChart(
-                        LineChartData(
-                          minY: 0,
-                          maxY: 20,
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false,
-                            horizontalInterval: 5,
-                            getDrawingHorizontalLine: (v) => const FlLine(
-                                color: AppColors.cardBorder, strokeWidth: 1),
-                          ),
-                          titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                interval: 5,
-                                reservedSize: 28,
-                                getTitlesWidget: (v, meta) => Text(
-                                  v.toInt().toString(),
-                                  style: const TextStyle(
-                                      color: AppColors.textMuted, fontSize: 10),
-                                ),
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
+              expandChart
+                  ? Expanded(child: _buildChartWidget(spots, events))
+                  : SizedBox(height: 220, child: _buildChartWidget(spots, events)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildChartWidget(List<FlSpot> spots, List<WazuhEvent> events) {
+    if (spots.isEmpty) {
+      return const Center(
+        child: Text(
+          'No event data yet.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+      );
+    }
+    return LineChart(
+      LineChartData(
+        minY: 0,
+        maxY: 20,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 5,
+          getDrawingHorizontalLine: (v) => const FlLine(
+              color: AppColors.cardBorder, strokeWidth: 1),
+        ),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              interval: events.length > 6 ? (events.length / 6).ceilToDouble() : 1,
+              getTitlesWidget: (v, meta) {
+                final index = v.toInt();
+                if (index < 0 || index >= events.length) {
+                  return const SizedBox.shrink();
+                }
+                
+                final dt = events[index].timestamp;
+                final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    timeStr,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 10),
+                  ),
+                );
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 5,
+              reservedSize: 28,
+              getTitlesWidget: (v, meta) => Text(
+                v.toInt().toString(),
+                style: const TextStyle(
+                    color: AppColors.textMuted, fontSize: 10),
+              ),
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
                           lineTouchData: LineTouchData(
                             touchTooltipData: LineTouchTooltipData(
                               getTooltipColor: (_) => AppColors.card,
@@ -472,32 +503,26 @@ class _OverviewContentState extends State<OverviewContent> {
                               },
                             ),
                           ),
-                          lineBarsData: [
-                            LineChartBarData(
-                              isCurved: false,
-                              color: AppColors.red,
-                              barWidth: 2,
-                              dotData: const FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    AppColors.red.withValues(alpha: 0.35),
-                                    AppColors.red.withValues(alpha: 0.02),
-                                  ],
-                                ),
-                              ),
-                              spots: spots,
-                            ),
-                          ],
-                        ),
-                      ),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: false,
+            color: AppColors.red,
+            barWidth: 2,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.red.withValues(alpha: 0.35),
+                  AppColors.red.withValues(alpha: 0.02),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+            spots: spots,
+          ),
+        ],
       ),
     );
   }
@@ -789,37 +814,22 @@ class _OverviewContentState extends State<OverviewContent> {
                         rows: [
                           for (final e in previewEvents)
                             [
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(_formatTime(e.timestamp),
-                                    color: AppColors.textSecondary),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(e.agent, color: AppColors.teal),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(e.ruleId, color: AppColors.teal),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                StatusBadge(
+                              CellText(_formatTime(e.timestamp),
+                                  color: AppColors.textSecondary),
+                              CellText(e.agent, color: AppColors.teal),
+                              CellText(e.ruleId,
+                                  color: AppColors.teal,
+                                  weight: FontWeight.w700),
+                              StatusBadge(
                                   label: '${e.level}',
-                                  color: _levelColor(e.level),
-                                ),
-                              ),
-                              _tappableCell(
-                                context,
-                                e,
-                                CellText(e.description,
-                                    color: AppColors.textSecondary),
-                              ),
+                                  color: _levelColor(e.level)),
+                              CellText(e.description,
+                                  color: AppColors.textSecondary),
                             ],
+                        ],
+                        onRowTap: [
+                          for (final e in previewEvents)
+                            () => _showEventDetails(context, e),
                         ],
                       ),
                     );
