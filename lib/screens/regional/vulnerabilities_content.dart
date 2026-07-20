@@ -15,6 +15,7 @@ class VulnerabilitiesContent extends StatefulWidget {
 
 class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
   final _repository = CveRepository();
+  String? _severityFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -77,15 +78,20 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                 );
               }
               final cves = snapshot.data!;
+              final filteredCves = _severityFilter == null
+                  ? cves
+                  : cves.where((c) => c.severity == _severityFilter).toList();
 
-              if (cves.isEmpty) {
-                return const DashCard(
+              if (filteredCves.isEmpty) {
+                return DashCard(
                   child: Padding(
-                    padding: EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(32),
                     child: Center(
                       child: Text(
-                        'No CVE findings yet.',
-                        style: TextStyle(
+                        _severityFilter == null
+                            ? 'No CVE findings yet.'
+                            : 'No $_severityFilter CVE findings.',
+                        style: const TextStyle(
                             color: AppColors.textSecondary, fontSize: 13),
                         textAlign: TextAlign.center,
                       ),
@@ -106,7 +112,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                   final narrow = constraints.maxWidth < 640;
                   return DashCard(
                     child: narrow
-                        ? _cveCardList(context, cves)
+                        ? _cveCardList(context, filteredCves)
                         : HScrollBox(
                             minWidth: 640,
                             child: SimpleTable(
@@ -119,7 +125,7 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
                               ],
                               flex: const [2, 2, 2, 3, 2],
                               rows: [
-                                for (final c in cves)
+                                for (final c in filteredCves)
                                   [
                                     CellText(c.cveId,
                                         color: AppColors.teal,
@@ -167,24 +173,40 @@ class _VulnerabilitiesContentState extends State<VulnerabilitiesContent> {
   }
 
   Widget _statPill(String value, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.card,
+    final isSelected = _severityFilter == label;
+    return Material(
+      color: AppColors.card,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _severityFilter = _severityFilter == label ? null : label;
+          });
+        },
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        children: [
-          Text(value,
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.bold, fontSize: 18)),
-          Text(label,
-              style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600)),
-        ],
+        child: Container(
+          padding: EdgeInsets.symmetric(
+              horizontal: 16, vertical: isSelected ? 9 : 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? color : AppColors.cardBorder,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(value,
+                  style: TextStyle(
+                      color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(label,
+                  style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
       ),
     );
   }
