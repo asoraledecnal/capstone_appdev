@@ -94,32 +94,34 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
       children: [
         const Icon(Icons.shield_outlined, color: AppColors.teal, size: 24),
         const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'DICT SIEM',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppColors.teal,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                letterSpacing: 0.4,
-              ),
-            ),
-            if (showSubtitle)
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
               const Text(
-                'SIEM/EDR HUB-AND-SPOKE',
+                'DICT SIEM',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 9.5,
+                  color: AppColors.teal,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                   letterSpacing: 0.4,
                 ),
               ),
-          ],
+              if (showSubtitle)
+                const Text(
+                  'SIEM/EDR HUB-AND-SPOKE',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 9.5,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );

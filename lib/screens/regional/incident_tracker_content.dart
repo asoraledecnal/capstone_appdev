@@ -349,11 +349,11 @@ class _IncidentTrackerContentState extends State<IncidentTrackerContent> {
 
   String _formatSpoke(String spokeId) {
     const map = {
-      'SPOKE-01': 'Rizal',
+      'SPOKE-01': 'Cavite',
       'SPOKE-02': 'Laguna',
       'SPOKE-03': 'Batangas',
-      'SPOKE-04': 'Quezon',
-      'SPOKE-05': 'Cavite',
+      'SPOKE-04': 'Rizal',
+      'SPOKE-05': 'Quezon',
     };
     return map[spokeId] ?? spokeId;
   }
