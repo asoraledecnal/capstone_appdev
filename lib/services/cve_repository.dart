@@ -10,24 +10,20 @@ class CveRepository {
   CollectionReference<Map<String, dynamic>> get _cvesRef =>
       _firestore.collection('cve_findings');
 
+  /// Streams CVE findings ordered by detection date, newest first.
+  ///
+  /// When [spokeId] is provided the query uses a composite index on
+  /// (spoke_id ASC, detected_at DESC) — see firestore.indexes.json.
   Stream<List<CveFinding>> watchCves({String? spokeId}) {
     Query<Map<String, dynamic>> query = _cvesRef;
     if (spokeId != null && spokeId.isNotEmpty) {
-      return query
-          .where('spoke_id', isEqualTo: spokeId)
-          .snapshots()
-          .map((snapshot) {
-            final cves = snapshot.docs
-                .map((doc) => CveFinding.fromFirestore(doc))
-                .toList();
-            cves.sort((a, b) => b.cveId.compareTo(a.cveId));
-            return cves;
-          });
+      query = query.where('spoke_id', isEqualTo: spokeId);
     }
     return query
         .orderBy('detected_at', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => CveFinding.fromFirestore(doc)).toList());
+        .map((snapshot) => snapshot.docs
+            .map((doc) => CveFinding.fromFirestore(doc))
+            .toList());
   }
 }

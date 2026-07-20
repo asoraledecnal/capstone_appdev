@@ -87,21 +87,35 @@ class AccessIdentitiesContent extends StatelessWidget {
                       DataColumn(label: Text('Raw Log')),
                     ],
                     rows: authEvents.map((event) {
-                      // Naive extraction for demo purposes
                       String username = 'unknown';
                       String ip = 'unknown';
                       String status = 'Failed';
 
                       final desc = event.description.toLowerCase();
-                      if (desc.contains('successful') || desc.contains('success')) {
+                      if (desc.contains('successful') || desc.contains('success') || desc.contains('accepted')) {
                         status = 'Success';
                       }
 
-                      // Try to match "user 'root'" or "user name: admin"
-                      final userMatch = RegExp(r"user '?([a-zA-Z0-9_\-\.]+)'?").firstMatch(event.description);
-                      if (userMatch != null) {
-                        username = userMatch.group(1) ?? 'unknown';
-                      } else if (desc.contains('root')) {
+                      // Improved username extraction for various OS log formats
+                      final userRegexes = [
+                        RegExp(r"user '?([a-zA-Z0-9_\-\.]+)'?", caseSensitive: false),
+                        RegExp(r"User name:\s*([a-zA-Z0-9_\-\.]+)", caseSensitive: false),
+                        RegExp(r"Account Name:\s*([a-zA-Z0-9_\-\.]+)", caseSensitive: false),
+                        RegExp(r"for (?:invalid user )?([a-zA-Z0-9_\-\.]+) from", caseSensitive: false),
+                      ];
+
+                      for (final regex in userRegexes) {
+                        final match = regex.firstMatch(event.description);
+                        if (match != null && match.groupCount >= 1) {
+                          final extracted = match.group(1);
+                          if (extracted != null && extracted.isNotEmpty && extracted.toLowerCase() != 'unknown') {
+                            username = extracted;
+                            break;
+                          }
+                        }
+                      }
+                      
+                      if (username == 'unknown' && desc.contains('root')) {
                         username = 'root';
                       }
 

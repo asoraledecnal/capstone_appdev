@@ -43,27 +43,18 @@ class _ProvincialContentState extends State<ProvincialContent> {
     }
   }
 
-  String _formatTime(DateTime dt) {
+  String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} '
+        '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
   @override
   Widget build(BuildContext context) {
-    switch (widget.module) {
-      case ProvincialModule.localDashboard:
-        return _buildLocalDashboard(context);
-      case ProvincialModule.endpointHealth:
-      case ProvincialModule.accessIdentities:
-      case ProvincialModule.incidentTickets:
-      case ProvincialModule.reports:
-        return const Center(
-          child: Text(
-            'Placeholder',
-            style: TextStyle(color: AppColors.textMuted),
-          ),
-        );
-    }
+    // ProvincialModule cases other than localDashboard are routed by
+    // HomeShell directly to their own dedicated screens — this widget
+    // only ever receives localDashboard.
+    return _buildLocalDashboard(context);
   }
 
   Widget _buildLocalDashboard(BuildContext context) {
@@ -321,7 +312,7 @@ class _ProvincialContentState extends State<ProvincialContent> {
                           rows: [
                             for (final e in previewEvents)
                               [
-                                CellText(_formatTime(e.timestamp),
+                                CellText(_formatDateTime(e.timestamp),
                                     color: AppColors.textSecondary),
                                 CellText(e.endpoint, weight: FontWeight.w600),
                                 Row(
@@ -449,7 +440,7 @@ class _ProvincialContentState extends State<ProvincialContent> {
                   rows: [
                     for (final e in allEvents)
                       [
-                        CellText(_formatTime(e.timestamp),
+                        CellText(_formatDateTime(e.timestamp),
                             color: AppColors.textSecondary),
                         CellText(e.endpoint, weight: FontWeight.w600),
                         Row(
@@ -628,7 +619,7 @@ class _ProvincialContentState extends State<ProvincialContent> {
                 ),
                 const SizedBox(height: 24),
                 _detailRow('Endpoint', event.endpoint),
-                _detailRow('Time', _formatTime(event.timestamp)),
+                _detailRow('Time', _formatDateTime(event.timestamp)),
                 _detailRow('Severity', event.severity,
                     color: AppColors.severityColor(event.severity)),
                 _detailRow('Rule Level', 'Level ${event.level}'),

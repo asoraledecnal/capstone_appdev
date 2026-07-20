@@ -1,19 +1,67 @@
 {
   "indexes": [
     {
-      "collectionGroup": "incidents",
+      "collectionGroup": "wazuh_events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "spoke_id", "order": "ASCENDING" },
+        { "fieldPath": "spoke_id",  "order": "ASCENDING"  },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },
     {
-      "collectionGroup": "wazuh_events",
+      "collectionGroup": "incidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spoke_id",  "order": "ASCENDING"  },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cve_findings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spoke_id",    "order": "ASCENDING"  },
+        { "fieldPath": "detected_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ioc_findings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spoke_id",  "order": "ASCENDING"  },
+        { "fieldPath": "last_seen", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "file_integrity_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spoke_id",  "order": "ASCENDING"  },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "compliance_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spoke_id",  "order": "ASCENDING"  },
+        { "fieldPath": "framework", "order": "ASCENDING"  }
+      ]
+    },
+    {
+      "collectionGroup": "wazuh_agents",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "spoke_id", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        { "fieldPath": "name",     "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mitre_tactics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spoke_id", "order": "ASCENDING"  },
+        { "fieldPath": "score",    "order": "DESCENDING" }
       ]
     }
   ],

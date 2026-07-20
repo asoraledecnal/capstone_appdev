@@ -13,9 +13,10 @@ class FileIntegrityContent extends StatefulWidget {
 }
 
 class _FileIntegrityContentState extends State<FileIntegrityContent> {
-  String _formatTime(DateTime dt) {
+  String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} '
+        '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
   @override
@@ -91,7 +92,7 @@ class _FileIntegrityContentState extends State<FileIntegrityContent> {
                           rows: [
                             for (final e in events)
                               [
-                                CellText(_formatTime(e.timestamp), color: AppColors.textSecondary),
+                                CellText(_formatDateTime(e.timestamp), color: AppColors.textSecondary),
                                 CellText(e.agentName, weight: FontWeight.w600),
                                 CellText(e.filePath, color: AppColors.textSecondary),
                                 Align(
@@ -143,9 +144,10 @@ class _FileEventCard extends StatelessWidget {
     final action = event.action;
     final actionColor = action == 'ADDED' ? AppColors.red : AppColors.orange;
     
-    String formatTime(DateTime dt) {
+    String formatDateTime(DateTime dt) {
       String two(int n) => n.toString().padLeft(2, '0');
-      return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+      return '${dt.year}-${two(dt.month)}-${two(dt.day)} '
+          '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
     }
 
     return Material(
@@ -188,7 +190,7 @@ class _FileEventCard extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   _metaChip(Icons.dns_outlined, event.agentName, AppColors.teal),
-                  _metaChip(Icons.access_time, formatTime(event.timestamp), AppColors.textMuted),
+                  _metaChip(Icons.access_time, formatDateTime(event.timestamp), AppColors.textMuted),
                 ],
               ),
               const SizedBox(height: 6),
@@ -252,9 +254,10 @@ void showFileEventDetail(BuildContext context, FileIntegrityEvent event) {
   final action = event.action;
   final actionColor = action == 'ADDED' ? AppColors.red : AppColors.orange;
   
-  String formatTime(DateTime dt) {
+  String formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} '
+        '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
   }
 
   showModalBottomSheet(
@@ -287,7 +290,7 @@ void showFileEventDetail(BuildContext context, FileIntegrityEvent event) {
             const SizedBox(height: 18),
             _detailRow('AGENT', event.agentName),
             const SizedBox(height: 18),
-            _detailRow('TIMESTAMP', formatTime(event.timestamp)),
+            _detailRow('TIMESTAMP', formatDateTime(event.timestamp)),
             const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,

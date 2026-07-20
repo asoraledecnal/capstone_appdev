@@ -10,19 +10,14 @@ class FileIntegrityRepository {
   CollectionReference<Map<String, dynamic>> get _eventsRef =>
       _firestore.collection('file_integrity_events');
 
+  /// Streams file integrity events ordered by timestamp, newest first.
+  ///
+  /// When [spokeId] is provided the query uses a composite index on
+  /// (spoke_id ASC, timestamp DESC) — see firestore.indexes.json.
   Stream<List<FileIntegrityEvent>> watchEvents({String? spokeId}) {
     Query<Map<String, dynamic>> query = _eventsRef;
     if (spokeId != null && spokeId.isNotEmpty) {
-      return query
-          .where('spoke_id', isEqualTo: spokeId)
-          .snapshots()
-          .map((snapshot) {
-            final events = snapshot.docs
-                .map((doc) => FileIntegrityEvent.fromFirestore(doc))
-                .toList();
-            events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-            return events;
-          });
+      query = query.where('spoke_id', isEqualTo: spokeId);
     }
     return query
         .orderBy('timestamp', descending: true)

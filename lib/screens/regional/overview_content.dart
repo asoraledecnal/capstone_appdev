@@ -47,9 +47,10 @@ class _OverviewContentState extends State<OverviewContent> {
     return AppColors.teal;
   }
 
-  String _formatTime(DateTime dt) {
+  String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} '
+        '${two(dt.hour)}:${two(dt.minute)}';
   }
 
   @override
@@ -814,7 +815,7 @@ class _OverviewContentState extends State<OverviewContent> {
                         rows: [
                           for (final e in previewEvents)
                             [
-                              CellText(_formatTime(e.timestamp),
+                              CellText(_formatDateTime(e.timestamp),
                                   color: AppColors.textSecondary),
                               CellText(e.agent, color: AppColors.teal),
                               CellText(e.ruleId,
@@ -901,7 +902,7 @@ class _OverviewContentState extends State<OverviewContent> {
                         _tappableCell(
                           context,
                           e,
-                          CellText(_formatTime(e.timestamp),
+                          CellText(_formatDateTime(e.timestamp),
                               color: AppColors.textSecondary),
                         ),
                         _tappableCell(
@@ -1028,7 +1029,7 @@ class _OverviewContentState extends State<OverviewContent> {
                             size: 12, color: AppColors.textMuted),
                         const SizedBox(width: 4),
                         Text(
-                          _formatTime(e.timestamp),
+                          _formatDateTime(e.timestamp),
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 11.5),
                         ),
@@ -1083,7 +1084,7 @@ class _OverviewContentState extends State<OverviewContent> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _detailRow('TIMESTAMP', _formatTime(event.timestamp)),
+              _detailRow('TIMESTAMP', _formatDateTime(event.timestamp)),
               _detailRow('AGENT', event.agent),
               _detailRow('RULE ID', event.ruleId),
               _detailRow('LEVEL', '${event.level}'),

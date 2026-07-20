@@ -10,19 +10,20 @@ class WazuhAgentRepository {
   CollectionReference<Map<String, dynamic>> get _agentsRef =>
       _firestore.collection('wazuh_agents');
 
+  /// Streams Wazuh agents sorted by name, optionally filtered by spoke.
+  ///
+  /// When [spokeId] is provided the query uses a composite index on
+  /// (spoke_id ASC, name ASC) — see firestore.indexes.json.
   Stream<List<WazuhAgent>> watchAgents({String? spokeId}) {
     Query<Map<String, dynamic>> query = _agentsRef;
-    if (spokeId != null) {
+    if (spokeId != null && spokeId.isNotEmpty) {
       query = query.where('spoke_id', isEqualTo: spokeId);
     }
     return query
+        .orderBy('name')
         .snapshots()
-        .map((snapshot) {
-          final agents = snapshot.docs
-              .map((doc) => WazuhAgent.fromFirestore(doc))
-              .toList();
-          agents.sort((a, b) => a.name.compareTo(b.name));
-          return agents;
-        });
+        .map((snapshot) => snapshot.docs
+            .map((doc) => WazuhAgent.fromFirestore(doc))
+            .toList());
   }
 }
