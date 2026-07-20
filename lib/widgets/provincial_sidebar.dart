@@ -25,13 +25,16 @@ class ProvincialSidebar extends StatelessWidget {
     this.onSwitchMode,
   });
 
-  static const Map<String, String> _tenantNames = {
+  /// Public spoke-name map — shared by the reports generator and other screens.
+  static const Map<String, String> tenantNames = {
     'SPOKE-01': 'Cavite Provincial Office',
     'SPOKE-02': 'Laguna Provincial Office',
     'SPOKE-03': 'Batangas Regional Hub',
     'SPOKE-04': 'Rizal Provincial Office',
     'SPOKE-05': 'Quezon Provincial Office',
   };
+  // Keep a private alias so existing internal references compile without change.
+  static const Map<String, String> _tenantNames = tenantNames;
 
   @override
   Widget build(BuildContext context) {
